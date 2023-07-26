@@ -127,11 +127,21 @@ public class TaskProperties {
                 coordinators.append(",");
               }
               coordinators.append(assignments[i].getResource().getName());
+  				    if (Math.round(assignments[i].getLoad()) < 100 ) {
+				        coordinators.append("@");
+				        coordinators.append(Math.round(assignments[i].getLoad()));
+				        coordinators.append("%");
+			   	    }
             } else {
               if (resources.length() > 0) {
                 resources.append(",");
               }
               resources.append(assignments[i].getResource().getName());
+				      if (Math.round(assignments[i].getLoad()) < 100 ) {
+                resources.append("@");
+                resources.append(Math.round(assignments[i].getLoad()));
+                resources.append("%");
+              }  
             }
           }
           if (coordinators.length() > 0) {
