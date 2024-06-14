@@ -34,10 +34,7 @@ import javafx.collections.FXCollections
 import javafx.collections.ObservableList
 import javafx.concurrent.Service
 import javafx.concurrent.Task
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.serialization.decodeFromString
+import kotlinx.coroutines.*
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import net.sourceforge.ganttproject.GPLogger
@@ -48,6 +45,9 @@ import org.apache.http.HttpHost
 import org.apache.http.HttpStatus
 import org.apache.http.client.utils.URIBuilder
 import java.io.IOException
+import java.net.InetSocketAddress
+import java.net.Proxy
+import java.net.URL
 import java.util.*
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledFuture
@@ -452,12 +452,14 @@ class HttpServerImpl : NanoHTTPD("localhost", 0) {
         val validity = getParam(session, "validity")
         val websocketToken = getParam(session, "websocketToken")
 
+        LOG.debug("Received Auth Token:{} validity:{}", token, validity)
         onTokenReceived?.invoke(token, validity, userId, websocketToken)
         newFixedLengthResponse("").apply {
           addHeader("Access-Control-Allow-Origin", GPCLOUD_ORIGIN)
         }
       }
       "/start" -> {
+        LOG.debug("Received /start request.")
         onStart?.invoke()
         newFixedLengthResponse("").apply {
           addHeader("Access-Control-Allow-Origin", GPCLOUD_ORIGIN)
@@ -483,13 +485,16 @@ interface GPCloudHttpClient {
   }
   @Throws(IOException::class)
   fun sendGet(uri: String, args: Map<String, String?> = emptyMap()): Response
+
   @Throws(IOException::class)
   fun sendPost(uri: String, parts: Map<String, String?>, encoding: HttpPostEncoding = HttpPostEncoding.MULTIPART): Response
 }
 
+
 class HttpClientOk(
     private val host: String,
     val userId: String = "",
+    val proxy: String = "",
     val authToken: () -> String = {""}) : GPCloudHttpClient {
   private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
       .connectTimeout(10, TimeUnit.SECONDS)
@@ -500,6 +505,28 @@ class HttpClientOk(
         if (userId.isNotBlank() && authToken().isNotBlank()) {
           addInterceptor {
             it.proceed(it.request().newBuilder().header("Authorization", Credentials.basic(userId, authToken())).build())
+          }
+        }
+        if (proxy.isNotBlank()) {
+          try {
+            val proxyUrl = URL(proxy)
+            val host = proxyUrl.host
+            val port = proxyUrl.port
+            if (proxyUrl.protocol.lowercase().startsWith("http")) {
+              this.proxy(Proxy(Proxy.Type.HTTP, InetSocketAddress(host, port)))
+            }
+            if (!proxyUrl.userInfo.isNullOrBlank()) {
+              val (username, password) = proxyUrl.userInfo!!.split(":", limit = 2)
+              this.proxyAuthenticator(object : Authenticator {
+                override fun authenticate(route: Route?, response: Response) =
+                  response.request().newBuilder()
+                    .header("Proxy-Authorization", Credentials.basic(username, password))
+                    .build()
+
+              })
+            }
+          } catch(ex: Exception) {
+            LOG.error("Can't build a proxy connection from the url={}", proxy, ex)
           }
         }
       }.build()
@@ -562,7 +589,7 @@ object HttpClientBuilder {
 
   fun buildHttpClientOk(withAuth: Boolean): HttpClientOk {
     return if (withAuth) {
-      HttpClientOk(HOST.toHostString(), GPCloudOptions.userId?.value ?: "", { GPCloudOptions.authToken?.value ?: "" })
+      HttpClientOk(HOST.toHostString(), GPCloudOptions.userId.value ?: "", GPCloudOptions.proxy.value.trim(), { GPCloudOptions.authToken.value ?: "" })
     } else {
       HttpClientOk(HOST.toHostString())
     }
@@ -603,3 +630,4 @@ fun isColloboqueLocalTest(): Boolean = cloudEnvironment == GPCloudEnv.EMULATOR
 
 private val HOST = HttpHost.create(GPCLOUD_ORIGIN)
 private val LOG = GPLogger.create("Cloud.Http")
+internal val httpScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())

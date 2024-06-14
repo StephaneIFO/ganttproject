@@ -52,7 +52,7 @@ class SqlStatementsGeneratorTest {
       it.setURL("jdbc:h2:mem:test$SQL_PROJECT_DATABASE_OPTIONS")
     }
     projectDatabase = SqlProjectDatabaseImpl(dataSource).also {
-      it.startLog("0")
+      it.startLog(0)
     }
     val taskManagerBuilder = TestSetupHelper.newTaskManagerBuilder()
     taskManagerBuilder.setTaskUpdateBuilderFactory { task -> projectDatabase.createTaskUpdateBuilder(task) }
@@ -206,7 +206,7 @@ class SqlStatementsGeneratorTest {
     )
 
     val mergeSql = generateSqlStatement(dsl, mergeDto)
-    assert(mergeSql.matches("""merge.into.table_name.using.\(select.1.as."one"\).on.\(.*.and.id_column.=.'some_id'.*.and.ranged_column.in.\('foo',.'bar'\)\).when.matched.then.update.set."column_name".=.'42'.when.not.matched.then.insert.\("another_column_name"\).values.\('false'\)""".toRegex())) { "Generated query $mergeSql" }
+    assert(mergeSql.matches("""merge.into.table_name.using.\(select.1.as."one"\).*.on.\(.*.and.id_column.=.'some_id'.*.and.ranged_column.in.\('foo',.'bar'\)\).when.matched.then.update.set."column_name".=.'42'.when.not.matched.then.insert.\("another_column_name"\).values.\('false'\)""".toRegex())) { "Generated query $mergeSql" }
   }
 
   private fun LocalDate.toIsoNoHours() = this.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))

@@ -23,6 +23,7 @@ import biz.ganttproject.FXUtil
 import biz.ganttproject.app.Localizer
 import biz.ganttproject.app.getModifiers
 import biz.ganttproject.app.getNumberFormat
+import biz.ganttproject.colorFromUiManager
 import biz.ganttproject.core.option.*
 import biz.ganttproject.core.time.CalendarFactory
 import biz.ganttproject.core.time.GanttCalendar
@@ -96,6 +97,10 @@ fun initFontProperty(appFontOption: FontOption, rowPaddingOption: DoubleOption) 
       }
     }
   }
+  rowPaddingOption.addChangeValueListener { event ->
+    cellPadding = rowPaddingOption.value
+    calculateMinCellHeight(appFontOption.value)
+  }
 }
 val applicationBackground = SimpleObjectProperty(Color.BLACK)
 val applicationForeground = SimpleObjectProperty<Paint>(Color.BLACK)
@@ -113,11 +118,6 @@ fun initColorProperties() {
   }
   onChange()
 }
-
-private fun String.colorFromUiManager(): Color? =
-  UIManager.getColor(this)?.let { swingColor ->
-    Color.color(swingColor.red / 255.0, swingColor.green / 255.0, swingColor.blue / 255.0)
-  }
 
 val liveCells = mutableListOf<WeakReference<TextCell<*,*>>>()
 val fontListener by lazy {
@@ -325,15 +325,14 @@ class TextCell<S, T>(
       // Use onAction here rather than onKeyReleased (with check for Enter),
       // as otherwise we encounter RT-34685
       textField.onAction = EventHandler { event: ActionEvent ->
-        try {
+        effect = try {
           commitText(textField.text)
           styleClass.remove("validation-error")
-          effect = null
+          null
         } catch (ex: ValidationException) {
           styleClass.add("validation-error")
-          effect = InnerShadow(10.0, Color.RED)
-        }
-        finally {
+          InnerShadow(10.0, Color.RED)
+        } finally {
           event.consume()
         }
       }
@@ -353,18 +352,23 @@ class TextCell<S, T>(
     }
 }
 
-fun <S> createTextColumn(name: String, getValue: (S) -> String?, setValue: (S, String) -> Unit, onEditingCompleted: () -> Unit): TreeTableColumn<S, String> =
+fun <S> createTextColumn(
+  name: String,
+  getValue: (S) -> String?,
+  setValue: (S, String) -> Unit,
+  onEditCompleted: (S) -> Unit = {}): TreeTableColumn<S, String> =
   TreeTableColumn<S, String>(name).apply {
     setCellValueFactory {
       ReadOnlyStringWrapper(getValue(it.value.value) ?: "")
     }
     cellFactory = TextCellFactory<S, String>(converter = DefaultStringConverter().adapt()) {
-      it.onEditingCompleted = onEditingCompleted
-
       it.styleClass.add("text-left")
     }
     onEditCommit = EventHandler { event ->
       setValue(event.rowValue.value, event.newValue)
+    }
+    onEditCancel = EventHandler { event ->
+      onEditCompleted(event.rowValue.value)
     }
   }
 

@@ -19,9 +19,11 @@ along with GanttProject.  If not, see <http://www.gnu.org/licenses/>.
 package cloud.ganttproject.colloboque
 
 import com.github.ajalt.clikt.core.CliktCommand
+import com.github.ajalt.clikt.core.context
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
+import com.github.ajalt.clikt.output.MordantHelpFormatter
 import fi.iki.elonen.NanoHTTPD
 import fi.iki.elonen.NanoHTTPD.Response.Status
 import fi.iki.elonen.NanoWSD
@@ -43,13 +45,20 @@ import java.util.zip.CRC32
 fun main(args: Array<String>) = DevServerMain().main(args)
 
 class DevServerMain : CliktCommand() {
-  private val port by option("--port").int().default(9000)
-  private val wsPort by option("--ws-port").int().default(9001)
-  private val pgHost by option("--pg-host").default("localhost")
-  private val pgPort by option("--pg-port").int().default(5432)
-  private val pgSuperUser by option("--pg-super-user").default("postgres")
-  private val pgSuperAuth by option("--pg-super-auth").default("")
+  private val port by option("--port", help = "HTTP port to listen on").int().default(9000)
+  private val wsPort by option("--ws-port", help = "WebSocket port to listen on").int().default(9001)
+  private val pgHost by option("--pg-host", help = "Postgres host name").default("localhost")
+  private val pgPort by option("--pg-port", help = "Postgres port").int().default(5432)
+  private val pgSuperUser by option("--pg-super-user", help = "Postgres super user name").default("postgres")
+  private val pgSuperAuth by option("--pg-super-auth", help = "Postgres super user password").default("")
 
+  init {
+    // TODO: is there a better place for this?
+    localeApi
+    context {
+      helpFormatter = { MordantHelpFormatter(it, showDefaultValues = true) }
+    }
+  }
   override fun run() {
     STARTUP_LOG.debug("Starting dev Colloboque server on port {}", port)
 
@@ -57,44 +66,44 @@ class DevServerMain : CliktCommand() {
     val updateInputChannel = Channel<InputXlog>()
     val serverResponseChannel = Channel<ServerResponse>()
     val connectionFactory = PostgresConnectionFactory(pgHost, pgPort, pgSuperUser, pgSuperAuth)
-    val colloboqueServer = ColloboqueServer(connectionFactory::initProject, connectionFactory::createConnection,
-      initInputChannel, updateInputChannel, serverResponseChannel)
+    val colloboqueServer = ColloboqueServer(connectionFactory::createConnection,
+      PostgreStorageApi(connectionFactory),
+      updateInputChannel, serverResponseChannel)
     ColloboqueHttpServer(port, colloboqueServer).start(0, false)
     ColloboqueWebSocketServer(wsPort, colloboqueServer, updateInputChannel, serverResponseChannel).start(0, false)
   }
 }
 
 class ColloboqueHttpServer(port: Int, private val colloboqueServer: ColloboqueServer) : NanoHTTPD("localhost", port) {
-  override fun serve(session: IHTTPSession): Response =
-    when (session.uri) {
+  override fun serve(session: IHTTPSession): Response {
+    LOG.debug(session.uri)
+    return when (session.uri) {
       "/init" -> {
         session.parameters["projectRefid"]?.firstOrNull()?.let {
-          val projectXml =
-            if (session.parameters["debug_create_project"]?.firstOrNull()?.toBoolean() == true) PROJECT_XML_TEMPLATE
-            else null
-          colloboqueServer.init(it, projectXml)
+          colloboqueServer.init(it, PROJECT_XML_TEMPLATE)
           newFixedLengthResponse("Ok")
-        } ?: newFixedLengthResponse(Status.BAD_REQUEST, NanoHTTPD.MIME_PLAINTEXT, "projectRefid is missing")
+        } ?: newFixedLengthResponse(Status.BAD_REQUEST, MIME_PLAINTEXT, "projectRefid is missing")
       }
+
       "/" -> newFixedLengthResponse("Hello")
       "/p/read" -> {
-        session.parameters["projectRefid"]?.firstOrNull()?.let {
-          val baseTxnId = colloboqueServer.getBaseTxnId(it) ?: run {
-            colloboqueServer.init(it, PROJECT_XML_TEMPLATE)
-          }
+        session.parameters["projectRefid"]?.firstOrNull()?.let {projectRefid ->
 
-          newFixedLengthResponse(PROJECT_XML_TEMPLATE.toBase64()).also {response ->
+          val snapshot = colloboqueServer.getProjectXml(projectRefid)
+          newFixedLengthResponse(snapshot.projectXml!!.toBase64()).also { response ->
             response.addHeader("ETag", "-1")
-            response.addHeader("Digest", CRC32().let {hash ->
-              hash.update(PROJECT_XML_TEMPLATE.toByteArray())
+            response.addHeader("Digest", CRC32().let { hash ->
+              hash.update(snapshot.projectXml!!.toByteArray())
               hash.value.toString()
             })
-            response.addHeader("BaseTxnId", baseTxnId)
+            response.addHeader("BaseTxnId", snapshot.baseTxnId.toString())
           }
-        } ?: newFixedLengthResponse(Status.BAD_REQUEST, NanoHTTPD.MIME_PLAINTEXT, "projectRefid is missing")
+        } ?: newFixedLengthResponse(Status.BAD_REQUEST, MIME_PLAINTEXT, "projectRefid is missing")
       }
+
       else -> newFixedLengthResponse(Status.NOT_FOUND, MIME_PLAINTEXT, "Not Found")
     }
+  }
 }
 
 class ColloboqueWebSocketServer(port: Int, private val colloboqueServer: ColloboqueServer,
@@ -163,11 +172,6 @@ class ColloboqueWebSocketServer(port: Int, private val colloboqueServer: Collobo
       }
       val inputXlog = parseInputXlog(message.textPayload) ?: return
       LOG.debug("Message received\n {}", inputXlog)
-      if (inputXlog.transactions.size != 1) {
-        // TODO: add multiple transactions support.
-        LOG.error("Only single transaction commit supported")
-        return
-      }
       wsRequestScope.launch {
         updateInputChannel.send(inputXlog)
       }
@@ -183,12 +187,3 @@ class ColloboqueWebSocketServer(port: Int, private val colloboqueServer: Collobo
 
 private val STARTUP_LOG = GPLogger.create("Startup")
 private val LOG = GPLogger.create("ColloboqueWebServer")
-private val PROJECT_XML_TEMPLATE = """
-<?xml version="1.0" encoding="UTF-8"?>
-<project name="" company="" webLink="" view-date="2022-01-01" view-index="0" gantt-divider-location="374" resource-divider-location="322" version="3.0.2906" locale="en">
-  <tasks empty-milestones="true">
-      <task id="0" uid="qwerty" name="Task1" color="#99ccff" meeting="false" start="2022-02-10" duration="25" complete="85" expand="true"/>
-  </tasks>
-</project>
-        """.trimIndent()
-private fun String.toBase64() = Base64.getEncoder().encodeToString(this.toByteArray())

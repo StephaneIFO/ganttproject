@@ -73,7 +73,8 @@ class TaskRecords(
     PREDECESSORS(TaskDefaultColumn.PREDECESSORS.nameKey),
     OUTLINE_NUMBER(TaskDefaultColumn.OUTLINE_NUMBER.nameKey),
     COST(TaskDefaultColumn.COST.nameKey),
-    COLOR(TaskDefaultColumn.COLOR.nameKey);
+    COLOR(TaskDefaultColumn.COLOR.nameKey),
+    PRIORITY(TaskDefaultColumn.PRIORITY.nameKey);
 
     override fun toString(): String {
       // Return translated field name
@@ -155,6 +156,11 @@ class TaskRecords(
       }
     }
 
+    if (record.isSet(TaskDefaultColumn.PRIORITY.getName())) {
+      record.get(TaskDefaultColumn.PRIORITY.getName())?.let {
+        builder = builder.withPriority(Task.Priority.fromPersistentValue(it))
+      }
+    }
     if (record.isSet(TaskDefaultColumn.ID.getName())) {
       builder = record.getInt(TaskDefaultColumn.ID.getName())?.let { builder.withId(it)} ?: builder
     }
@@ -279,7 +285,7 @@ private class AssignmentColumnSpecImpl(
         if (resource == null) {
           addError(
             myErrors, Level.WARNING, String.format(
-              "Resource not found by id=%d from assignment cell=%s of task=%d", item, myValue, task.taskID
+              "Resource not found by id=%s from assignment cell=%s of task=%s", item, myValue, task.taskID
             )
           )
           continue
