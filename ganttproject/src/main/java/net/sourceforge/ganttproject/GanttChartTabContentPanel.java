@@ -18,10 +18,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package net.sourceforge.ganttproject;
 
-import biz.ganttproject.app.*;
-import biz.ganttproject.core.option.DefaultDoubleOption;
-import biz.ganttproject.core.option.DoubleOption;
-import biz.ganttproject.core.option.GPOption;
+import biz.ganttproject.app.BarrierEntrance;
+import biz.ganttproject.app.FXToolbarBuilder;
+import biz.ganttproject.app.MenuBuilderFx;
+import biz.ganttproject.app.ToolbarKt;
 import biz.ganttproject.ganttview.TaskFilterActionSet;
 import biz.ganttproject.ganttview.TaskTable;
 import biz.ganttproject.lib.fx.TreeTableCellsKt;
@@ -30,14 +30,12 @@ import com.google.common.base.Suppliers;
 import javafx.application.Platform;
 import javafx.embed.swing.JFXPanel;
 import javafx.geometry.Side;
-import javafx.scene.Node;
 import javafx.scene.Scene;
 import javafx.scene.control.Button;
 import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.ContextMenu;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
-import javafx.scene.layout.Priority;
 import kotlin.Unit;
 import kotlin.jvm.functions.Function0;
 import net.sourceforge.ganttproject.action.BaselineDialogAction;
@@ -47,21 +45,20 @@ import net.sourceforge.ganttproject.chart.Chart;
 import net.sourceforge.ganttproject.gui.UIConfiguration;
 import net.sourceforge.ganttproject.gui.UIFacade;
 import net.sourceforge.ganttproject.gui.UIUtil;
-import net.sourceforge.ganttproject.gui.view.ViewProvider;
+import net.sourceforge.ganttproject.gui.view.GPView;
 import net.sourceforge.ganttproject.language.GanttLanguage;
 import org.jetbrains.annotations.NotNull;
 
-import javax.swing.*;
-import java.awt.*;
+import javax.swing.JComponent;
+import javax.swing.SwingUtilities;
+import java.awt.Component;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-class GanttChartTabContentPanel extends ChartTabContentPanel implements ViewProvider {
+class GanttChartTabContentPanel extends ChartTabContentPanel implements GPView {
   private final JComponent myGanttChart;
   private final UIFacade myWorkbenchFacade;
   private final CalculateCriticalPathAction myCriticalPathAction;
@@ -71,9 +68,6 @@ class GanttChartTabContentPanel extends ChartTabContentPanel implements ViewProv
   private final Function0<Unit> myInitializationCompleted;
   private JComponent myComponent;
   private TaskTable taskTable;
-  private ViewComponents myViewComponents;
-
-  private DoubleOption myDividerOption = new DefaultDoubleOption("divider", 0.5);
 
   GanttChartTabContentPanel(IGanttProject project, UIFacade workbenchFacade,
                             JComponent ganttChart, UIConfiguration uiConfiguration, Supplier<TaskTable> taskTableSupplier,
@@ -89,26 +83,14 @@ class GanttChartTabContentPanel extends ChartTabContentPanel implements ViewProv
     myCriticalPathAction.putValue(GPAction.TEXT_DISPLAY, ContentDisplay.TEXT_ONLY);
     myBaselineAction = new BaselineDialogAction(project, workbenchFacade);
     myBaselineAction.putValue(GPAction.TEXT_DISPLAY, ContentDisplay.TEXT_ONLY);
-
-    setImageHeight(() -> Double.valueOf(myViewComponents.getImage().getHeight()).intValue());
-    myDividerOption.addChangeValueListener(event -> {
-      if (event.getNewValue() != event.getOldValue() && event.getTriggerID() != GanttChartTabContentPanel.this
-        && myViewComponents != null) {
-        myViewComponents.getSplitPane().setDividerPosition(0, myDividerOption.getValue());
-      }
-    });
-    //addChartPanel(createSchedulePanel());
+    addChartPanel(createSchedulePanel());
     //addTableResizeListeners(myTaskTree, myTreeFacade.getTreeTable().getScrollPane().getViewport());
   }
 
-  private FXToolbarBuilder createScheduleToolbar() {
-    return new FXToolbarBuilder().withApplicationFont(TreeTableCellsKt.getApplicationFont())
-      .addButton(myCriticalPathAction).addButton(myBaselineAction)
-      .withClasses("toolbar-common", "toolbar-small", "toolbar-chart", "align-right");
-  }
-
   private Component createSchedulePanel() {
-    return createScheduleToolbar().withScene().build().getComponent();
+    return new FXToolbarBuilder().withApplicationFont(TreeTableCellsKt.getApplicationFont()).addButton(myCriticalPathAction).addButton(myBaselineAction)
+      .withClasses("toolbar-common", "toolbar-small", "toolbar-chart", "align-right")
+      .withScene().build().getComponent();
   }
 
   JComponent getComponent() {
@@ -125,12 +107,7 @@ class GanttChartTabContentPanel extends ChartTabContentPanel implements ViewProv
   //private final TaskFilterActionSet
   @Override
   protected Component createButtonPanel() {
-    return createToolbarBuilder().withScene()
-      .build()
-      .getComponent();
-  }
 
-  private FXToolbarBuilder createToolbarBuilder() {
     Button tableFilterButton = ToolbarKt.createButton(new TableButtonAction("taskTable.tableMenuFilter"), true);
     tableFilterButton.setOnAction(event -> {
       var tableFilterMenu = new ContextMenu();
@@ -155,19 +132,10 @@ class GanttChartTabContentPanel extends ChartTabContentPanel implements ViewProv
         .addButton(myTaskActions.getLinkTasksAction().asToolbarAction())
         .addButton(myTaskActions.getUnlinkTasksAction().asToolbarAction())
         .addTail(filterComponent)
-      //      it.toolbar.stylesheets.add("/net/sourceforge/ganttproject/ChartTabContentPanel.css")
-//      it.toolbar.styleClass.remove("toolbar-big")
-
-      .withClasses("toolbar-common", "toolbar-small", "task-filter");
-  }
-
-  @NotNull
-  @Override
-  public Function0<Unit> getRefresh() {
-    return () -> {
-      getChart().reset();
-      return null;
-    };
+        .withClasses("toolbar-common", "toolbar-small", "task-filter")
+        .withScene()
+        .build()
+        .getComponent();
   }
 
   static class TableButtonAction extends GPAction {
@@ -181,14 +149,14 @@ class GanttChartTabContentPanel extends ChartTabContentPanel implements ViewProv
   }
 
   @Override
-  public JComponent getChartComponent() {
+  public Component getChartComponent() {
     return myGanttChart;
   }
 
   @Override
   protected @NotNull Component getTreeComponent() {
     var jfxPanel = new JFXPanel();
-    this.taskTable = setupTaskTable();
+    var taskTable = myTaskTableSupplier.get();
     jfxPanel.addKeyListener(new KeyAdapter() {
       @Override
       public void keyPressed(KeyEvent e) {
@@ -200,9 +168,10 @@ class GanttChartTabContentPanel extends ChartTabContentPanel implements ViewProv
     });
     Platform.runLater(() -> {
       jfxPanel.setScene(new Scene(taskTable.getControl()));
-      setHeaderHeight(() -> taskTable.getHeaderHeightProperty().intValue());
+      setMyHeaderHeight(() -> taskTable.getHeaderHeightProperty().intValue());
       myInitializationCompleted.invoke();
     });
+    taskTable.getHeaderHeightProperty().addListener((observable, oldValue, newValue) -> updateTimelineHeight());
     taskTable.setRequestSwingFocus(() -> {
       jfxPanel.requestFocus();
       return null;
@@ -211,13 +180,6 @@ class GanttChartTabContentPanel extends ChartTabContentPanel implements ViewProv
     taskTable.getColumnListWidthProperty().addListener((observable, oldValue, newValue) ->
       SwingUtilities.invokeLater(() -> setTableWidth(newValue.component1() + newValue.component2()))
     );
-
-    return jfxPanel;
-  }
-
-  private TaskTable setupTaskTable() {
-    var taskTable = myTaskTableSupplier.get();
-    taskTable.getHeaderHeightProperty().addListener((observable, oldValue, newValue) -> updateTimelineHeight());
     taskTable.loadDefaultColumns();
     taskTable.getFilterManager().getHiddenTaskCount().addListener((obs,  oldValue,  newValue) -> Platform.runLater(() -> {
       if (newValue.intValue() != 0) {
@@ -226,71 +188,29 @@ class GanttChartTabContentPanel extends ChartTabContentPanel implements ViewProv
         filterTaskLabel.setText("");
       }
     }));
-    return taskTable;
+
+    this.taskTable = taskTable;
+    return jfxPanel;
   }
 
   // //////////////////////////////////////////////
   // GPView
-//  @Override
-//  public void setActive(boolean active) {
-//    if (active) {
-//      //myTaskTree.requestFocus();
-//      this.taskTable.initUserKeyboardInput();
-//      myTaskActions.getCreateAction().updateAction();
-//    }
-//  }
+  @Override
+  public void setActive(boolean active) {
+    if (active) {
+      //myTaskTree.requestFocus();
+      this.taskTable.initUserKeyboardInput();
+      myTaskActions.getCreateAction().updateAction();
+    }
+  }
 
   @Override
   public Chart getChart() {
     return myWorkbenchFacade.getGanttChart();
   }
 
-    @Override
-  public Node getNode() {
-    myInitializationCompleted.invoke();
-    myViewComponents = ViewPaneKt.createViewComponents(
-      /*toolbarBuilder=*/      () -> {
-        var toolbar = createToolbarBuilder().build().getToolbar$ganttproject();
-        toolbar.getStylesheets().add("/net/sourceforge/ganttproject/ChartTabContentPanel.css");
-        return toolbar;
-      },
-      /*tableBuilder=*/        () -> {
-        taskTable = setupTaskTable();
-        return taskTable.getTreeTable();
-      },
-      /*chartToolbarBuilder=*/ () -> {
-        var chartToolbarBox = new HBox();
-        var navigationBar = createNavigationToolbarBuilder().build().getToolbar$ganttproject();
-        navigationBar.getStylesheets().add("/net/sourceforge/ganttproject/ChartTabContentPanel.css");
-        chartToolbarBox.getChildren().add(navigationBar);
-        HBox.setHgrow(navigationBar, Priority.ALWAYS);
-        chartToolbarBox.getChildren().add(createScheduleToolbar().build().getToolbar$ganttproject());
-        return chartToolbarBox;
-      },
-      /*chartBuilder=*/        this::getChartComponent,
-      myWorkbenchFacade.getDpiOption()
-    );
-    setHeaderHeight(() -> taskTable.getHeaderHeightProperty().intValue());
-    myViewComponents.getSplitPane().getDividers().get(0).positionProperty().addListener((observable, oldValue, newValue) ->
-      myDividerOption.setValue(newValue.doubleValue(), GanttChartTabContentPanel.this)
-    );
-    taskTable.getColumnList().getTotalWidthProperty().addListener((observable, oldValue, newValue) -> {
-      myViewComponents.initializeDivider(taskTable.getColumnList().getTotalWidth());
-    });
-    return myViewComponents.getSplitPane();
-  }
-
-  @NotNull
   @Override
-  public List<GPOption<?>> getOptions() {
-    var options = new ArrayList<GPOption<?>>();
-    options.addAll(getProject().getTaskFilterManager().getOptions());
-    options.add(myDividerOption);
-    return options;
-  }
-
-  @Override
-  public String getId() {
-    return "ganttChart";
+  public Component getViewComponent() {
+    return getComponent();
   }
 }

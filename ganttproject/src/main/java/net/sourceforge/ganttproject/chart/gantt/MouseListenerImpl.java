@@ -69,6 +69,12 @@ class MouseListenerImpl extends MouseListenerBase {
 
   @Override
   public void mouseClicked(MouseEvent e) {
+    if (e.getButton() == MouseEvent.BUTTON1) {
+      Task taskUnderPointer = myChartImplementation.findTaskUnderPointer(e.getX(), e.getY());
+      if (taskUnderPointer == null) {
+        getTaskSelectionManager().clear();
+      }
+    }
     if (e.getClickCount() == 2 && e.getButton() == MouseEvent.BUTTON1) {
       myTaskTableActionFacade.get().getTaskPropertiesAction().invoke().actionPerformed(null);
     }

@@ -23,11 +23,13 @@ import biz.ganttproject.core.option.IntegerOption;
 import net.sourceforge.ganttproject.IGanttProject;
 import net.sourceforge.ganttproject.action.GPAction;
 import net.sourceforge.ganttproject.action.ViewToggleAction;
+import net.sourceforge.ganttproject.chart.Chart;
+import net.sourceforge.ganttproject.gui.view.GPView;
 import net.sourceforge.ganttproject.gui.view.GPViewManager;
-import net.sourceforge.ganttproject.gui.view.ViewProvider;
 import net.sourceforge.ganttproject.plugins.PluginManager;
 
 import javax.swing.*;
+import java.awt.*;
 import java.util.List;
 
 /**
@@ -37,15 +39,41 @@ public class ViewMenu extends JMenu {
   public ViewMenu(final IGanttProject project, GPViewManager viewManager, IntegerOption dpiOption, FontOption chartFontOption, String key) {
     super(GPAction.createVoidAction(key));
 
-    List<ViewProvider> charts = PluginManager.getViewProviders();
+    List<Chart> charts = PluginManager.getCharts();
     if (charts.isEmpty()) {
       setEnabled(false);
     }
-    for (ViewProvider viewProvider : charts) {
-      var action = new ViewToggleAction(viewManager, viewProvider);
-      action.updateAction();
-      add(new JCheckBoxMenuItem(action));
+    for (Chart chart : charts) {
+      chart.init(project, dpiOption, chartFontOption);
+      GPView view = new GPViewImpl(chart);
+      viewManager.createView(view, null);
+      add(new JCheckBoxMenuItem(new ViewToggleAction(chart, viewManager, view)));
     }
     setToolTipText(null);
+  }
+
+  private static class GPViewImpl implements GPView {
+    private final Chart myChart;
+    private Component myComponent;
+
+    GPViewImpl(Chart chart) {
+      myChart = chart;
+      myComponent = (Component) chart.getAdapter(Container.class);
+    }
+
+    @Override
+    public void setActive(boolean active) {
+    }
+
+    @Override
+    public Chart getChart() {
+      return myChart;
+    }
+
+    @Override
+    public Component getViewComponent() {
+      return myComponent;
+    }
+
   }
 }

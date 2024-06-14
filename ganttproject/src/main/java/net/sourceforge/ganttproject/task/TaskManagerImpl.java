@@ -86,8 +86,8 @@ public class TaskManagerImpl implements TaskManager {
     @Override
     public void logDependencyLoop(String title, String message) {
       if (myConfig.getNotificationManager() != null) {
-        myConfig.getNotificationManager().addNotifications(
-            ImmutableList.of(new NotificationItem(NotificationChannel.WARNING, "Dependency loop detected", message, NotificationManager.DEFAULT_HYPERLINK_LISTENER)));
+        myConfig.getNotificationManager().addNotifications(NotificationChannel.WARNING,
+            ImmutableList.of(new NotificationItem("Dependency loop detected", message, NotificationManager.DEFAULT_HYPERLINK_LISTENER)));
       }
       GPLogger.log(title + "\n" + message);
     }
@@ -317,15 +317,12 @@ public class TaskManagerImpl implements TaskManager {
     return root;
   }
 
-  public void reset() {
+  private void projectClosed() {
     myDependencyGraph.clear();
     myTaskMap.clear();
     myMaxID.set(0);
     myDependencyCollection.clear();
     myRoot.myTaskHierarchyItem.clearChildren();
-  }
-  private void projectClosed() {
-    reset();
     // createRootTask();
   }
 
@@ -858,7 +855,6 @@ public class TaskManagerImpl implements TaskManager {
         .withWebLink(that.getWebLink())
         .withPriority(that.getPriority())
         .withParent(root)
-        .withUid(that.getUid())
         .build();
 
       nextImported.setShape(task.getShape());

@@ -16,19 +16,32 @@ You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-package net.sourceforge.ganttproject.gui.view
+package net.sourceforge.ganttproject;
 
-import biz.ganttproject.core.option.GPOption
-import javafx.scene.Node
-import net.sourceforge.ganttproject.chart.Chart
+import java.util.ArrayList;
+import java.util.List;
 
-/**
- * @author dbarashev (Dmitry Barashev)
- */
-interface ViewProvider {
-  val options: List<GPOption<*>>
-  val chart: Chart
-  val node: Node?
-  val id: String
-  val refresh: ()->Unit
+class ErrorNotifier implements Runnable {
+  private final List<String> myErrors = new ArrayList<String>();
+  private final UIFacadeImpl myUIFacade;
+
+  ErrorNotifier(UIFacadeImpl uiFacade) {
+    myUIFacade = uiFacade;
+  }
+
+  void add(Throwable e) {
+    myErrors.add(e.getMessage());
+  }
+
+  @Override
+  public void run() {
+    StringBuffer buf = new StringBuffer();
+    for (int i = 0; i < myErrors.size(); i++) {
+      buf.append(String.valueOf(myErrors.get(i)));
+      buf.append("\n\n");
+    }
+    myUIFacade.showErrorDialog(buf.toString());
+    myErrors.clear();
+    myUIFacade.resetErrorLog();
+  }
 }

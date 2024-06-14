@@ -65,7 +65,6 @@ public class PasteAction extends GPAction {
     ChartSelection selection = myViewmanager.getSelectedArtefacts();
     if (!selection.isEmpty()) {
       pasteInternalFlavor(selection);
-      myUiFacade.getActiveChart().focus();
       return;
     }
     var clipboardProject = ClipboardContentsKt.getProjectFromClipboard(new BufferProject(myProject, myUiFacade));
@@ -76,7 +75,6 @@ public class PasteAction extends GPAction {
         e.printStackTrace();
       }
     }
-    myUiFacade.getActiveChart().focus();
   }
 
   private void pasteExternalDocument(BufferProject clipboardProject) {

@@ -102,13 +102,6 @@ public class Style {
     public int getLeft() {
       return myValues.get(3);
     }
-
-    @Override
-    public String toString() {
-      return "Padding{" +
-        "myValues=" + myValues +
-        '}';
-    }
   }
 
   private static BasicStroke parseStroke(String[] components) {
@@ -181,14 +174,6 @@ public class Style {
       }
       return new Border(color, stroke);
     }
-
-    @Override
-    public String toString() {
-      return "Border{" +
-        "myStroke=" + myStroke +
-        ", myColor=" + myColor +
-        '}';
-    }
   }
 
   public static class Borders {
@@ -242,17 +227,6 @@ public class Style {
           new Border(color, myBottom.getStroke()),
           new Border(color, myRight.getStroke()));
     }
-
-    @Override
-    public String toString() {
-      return "Borders{" +
-        "myTop=" + myTop +
-        ", myLeft=" + myLeft +
-        ", myRight=" + myRight +
-        ", myBottom=" + myBottom +
-        ", isHomogeneous=" + isHomogeneous +
-        '}';
-    }
   }
 
   public static class Color {
@@ -271,13 +245,6 @@ public class Style {
         return null;
       }
       return new Color(ColorOption.Util.INSTANCE.determineColor(value));
-    }
-
-    @Override
-    public String toString() {
-      return "Color{" +
-        "myColor=" + myColor +
-        '}';
     }
   }
 
@@ -457,20 +424,5 @@ public class Style {
     }
     String value = myProperties.getProperty(myStyleName + ".opacity");
     return (value == null) ? null : Float.valueOf(value);
-  }
-
-  public String getStyleName() {
-    return myStyleName;
-  }
-
-  @Override
-  public String toString() {
-    return "Style{\n" +
-      ", myStyleName='" + myStyleName + "'\n" +
-      "myPadding=" + myPadding +
-      ", myColor=" + myColor +
-      ", myBackground=" + myBackground +
-      ", myBorders=" + myBorders +
-      '}';
   }
 }

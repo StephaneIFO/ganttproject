@@ -18,7 +18,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package net.sourceforge.ganttproject.export;
 
-import biz.ganttproject.app.InternationalizationKt;
 import biz.ganttproject.core.option.GPOption;
 import biz.ganttproject.core.option.GPOptionGroup;
 import biz.ganttproject.storage.DocumentKt;
@@ -52,12 +51,11 @@ class FileChooserPage extends FileChooserPageBase {
   private final GPOptionGroup myWebPublishingGroup;
 
   FileChooserPage(State state, IGanttProject project, WizardImpl wizardImpl, Preferences prefs) {
-    super(wizardImpl, prefs);
+    super(wizardImpl, prefs, false);
     myState = state;
     myProject = project;
     myWebPublishingGroup = new GPOptionGroup("exporter.webPublishing", new GPOption[] { state.getPublishInWebOption() });
     myWebPublishingGroup.setTitled(false);
-    getOverwriteOption().addChangeValueListener(evt -> tryChosenFile(getChooser().getFile()));
   }
 
   @Override
@@ -103,7 +101,6 @@ class FileChooserPage extends FileChooserPageBase {
 
   @Override
   protected IStatus onSelectedFileChange(File file) {
-    getOverwriteOption().getIsWritableProperty().set(false, this);
     if (!file.exists()) {
       File parent = file.getParentFile();
       if (!parent.exists()) {
@@ -125,12 +122,6 @@ class FileChooserPage extends FileChooserPageBase {
         return new Status(IStatus.ERROR, "foo", IStatus.ERROR,
             GanttLanguage.getInstance().formatText("fileChooser.error.fileIsReadOnly", UIUtil.formatPathForLabel(file)),
             null);
-      }
-    } else {
-      getOverwriteOption().getIsWritableProperty().set(true, this);
-      if (!getOverwriteOption().isChecked()) {
-        return new Status(IStatus.WARNING, "foo", IStatus.WARNING,
-          InternationalizationKt.getRootLocalizer().formatText("fileChooser.warning.fileExists"), null);
       }
     }
     IStatus result = new Status(IStatus.OK, "foo", IStatus.OK, "", null);

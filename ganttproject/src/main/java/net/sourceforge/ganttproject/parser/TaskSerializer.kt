@@ -72,8 +72,7 @@ class TaskLoader(private val taskManager: TaskManager, private val treeCollapseV
     if (start.isNotBlank()) {
       builder = builder.withStartDate(GanttCalendar.parseXMLDate(start).time)
     }
-    val duration = child.duration.toLong().let { if (it >= 0) it else 1 }
-    builder = builder.withDuration(taskManager.createLength(duration))
+    builder = builder.withDuration(taskManager.createLength(child.duration.toLong()))
     builder =
       if (parent != null) {
         mapXmlGantt[parent]?.let { parentTask -> builder.withParent(parentTask) } ?: run {
@@ -109,7 +108,6 @@ class TaskLoader(private val taskManager: TaskManager, private val treeCollapseV
       if (earliestStart != null) {
         task.setThirdDate(GanttCalendar.parseXMLDate(earliestStart))
       }
-      task.thirdDateConstraint = child.thirdDateConstraint ?: 0
 
       child.webLink?.let { it ->
         try {
@@ -217,14 +215,7 @@ fun loadDependencyGraph(deps: List<GanttDependStructure>, taskManager: TaskManag
   }
 }
 
-fun loadGanttView(
-  xmlProject: XmlProject,
-  taskManager: TaskManager,
-  taskView: TaskView,
-  zoomManager: ZoomManager,
-  taskColumns: ColumnList,
-  options: MutableList<out GPOption<*>>
-) {
+fun loadGanttView(xmlProject: XmlProject, taskManager: TaskManager, taskView: TaskView, zoomManager: ZoomManager, taskColumns: ColumnList, options: List<GPOption<*>>) {
   val xmlView = xmlProject.views.firstOrNull { "gantt-chart" == it.id } ?: return
   // Load timeline tasks
   xmlView.timeline.let { timelineString ->

@@ -133,8 +133,8 @@ public abstract class WizardImpl {
     adjustButtonState();
     myDialog = myUIFacade.createDialog(myPagesContainer, new Action[] { myBackAction, myNextAction, myOkAction,
         myCancelAction }, myTitle);
-    myDialog.show();
     myDialog.center(Centering.SCREEN);
+    myDialog.show();
   }
 
   protected void addPageComponent(WizardPage page, int index) {

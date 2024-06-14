@@ -57,12 +57,11 @@ class ProjectDatabaseTest {
 
   @BeforeEach
   fun init() {
-    System.setProperty("colloboque.on", "true")
     dataSource = JdbcDataSource().also {
       it.setURL("jdbc:h2:mem:test$SQL_PROJECT_DATABASE_OPTIONS")
     }
     projectDatabase = SqlProjectDatabaseImpl(dataSource).also {
-      it.startLog(0)
+      it.startLog("0")
     }
     val taskManagerBuilder = TestSetupHelper.newTaskManagerBuilder()
     taskManagerBuilder.setTaskUpdateBuilderFactory { task -> projectDatabase.createTaskUpdateBuilder(task) }
@@ -75,7 +74,6 @@ class ProjectDatabaseTest {
     dataSource.connection.use { conn ->
       conn.createStatement().execute("shutdown")
     }
-    System.setProperty("colloboque.on", "false")
   }
 
   @Test
@@ -734,19 +732,6 @@ class ProjectDatabaseTest {
         fail("Wrong type of operation. Operation dto: $stmt")
       }
     }
-  }
-
-  @Test fun `rollback clears current transaction`() {
-    projectDatabase.init()
-    val txn = projectDatabase.startTransaction()
-    txn.rollback()
-    projectDatabase.startTransaction()
-  }
-
-  @Test fun `no concurrent transactions`() {
-    projectDatabase.init()
-    val txn = projectDatabase.startTransaction()
-    assertThrows<ProjectDatabaseException> { projectDatabase.startTransaction() }
   }
 }
 

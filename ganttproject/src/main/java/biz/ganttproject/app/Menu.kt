@@ -27,7 +27,6 @@ import de.jensd.fx.glyphs.materialicons.MaterialIconView
 import javafx.event.EventHandler
 import javafx.scene.Node
 import javafx.scene.control.*
-import javafx.scene.input.KeyCombination
 import javafx.scene.text.Text
 import net.sourceforge.ganttproject.action.GPAction
 import net.sourceforge.ganttproject.gui.UIUtil
@@ -193,7 +192,6 @@ class MenuBuilderAsList : MenuBuilder {
   fun actions() = actionList.toList()
 }
 
-fun (GPAction).getAccelerator(): KeyStroke? = this.getValue(Action.ACCELERATOR_KEY) as? KeyStroke
 fun (GPAction).getGlyphIcon(): Text? =
     UIUtil.getFontawesomeLabel(this)?.let { iconLabel ->
       when (UIUtil.getFontawesomeIconset(this)) {
@@ -234,8 +232,11 @@ fun GPAction.asMenuItem(): MenuItem =
         }
         checkBox.contentDisplay = ContentDisplay.GRAPHIC_ONLY
         checkBox.isSelected = isSelected as Boolean
-        checkBox.onAction = EventHandler { e ->
+        checkBox.onAction = EventHandler { _ ->
           this.putValue(Action.SELECTED_KEY, checkBox.isSelected)
+          SwingUtilities.invokeLater {
+            this.actionPerformed(null)
+          }
         }
 
         gpActionListener[this]?.let { this.removePropertyChangeListener(it) }
@@ -252,31 +253,12 @@ fun GPAction.asMenuItem(): MenuItem =
       }
     }
     val menuItem = CustomMenuItem(node)
-    this.getAccelerator()?.let {
-      menuItem.accelerator = KeyCombination.keyCombination(it.toString().replace("pressed", " ").trim()
-        .split("""\s+""".toRegex()).joinToString(separator = "+"))
-    }
     menuItem.onAction = EventHandler { _ ->
       SwingUtilities.invokeLater {
         this.actionPerformed(null)
       }
     }
-
     menuItem.also {
       it.isDisable = !isEnabled
     }
   }
-
-fun convertMenu(menuBar: JMenuBar): MenuBar {
-  val builder = MenuBarBuilder()
-  for (i in 0 until menuBar.menuCount) {
-    menuBar.getMenu(i).let {jmenu ->
-      val actions = mutableListOf<GPAction?>()
-      for (ii in 0 until jmenu.itemCount) {
-        actions.add(jmenu.getItem(ii)?.action as? GPAction)
-      }
-      builder.addMenu(jmenu.text, actions)
-    }
-  }
-  return builder.build()
-}

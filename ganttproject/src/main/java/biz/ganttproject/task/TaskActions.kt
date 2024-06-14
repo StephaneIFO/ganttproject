@@ -180,11 +180,13 @@ private class TaskMoveAction(
 ) : TaskActionBase(actionId, taskManager, selectionManager, uiFacade) {
 
   init {
-      uiFacade.onWindowOpened {
+    uiFacade.mainFrame.addWindowListener(object: WindowAdapter() {
+      override fun windowOpened(e: WindowEvent?) {
         myTableConnector().isSorted.addListener { _, _, newValue: Boolean ->
           isEnabled = !newValue
         }
       }
+    })
     super.disableUndoableEdit()
   }
 

@@ -26,12 +26,15 @@ import net.sourceforge.ganttproject.GPLogger;
 import net.sourceforge.ganttproject.io.XmlParser;
 import net.sourceforge.ganttproject.parser.AbstractTagHandler;
 import net.sourceforge.ganttproject.parser.HolidayTagHandler;
+import net.sourceforge.ganttproject.parser.ParsingListener;
+import net.sourceforge.ganttproject.parser.TagHandler;
 import org.xml.sax.Attributes;
 
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -73,8 +76,8 @@ public class GPCalendarProvider {
     HolidayTagHandler holidayHandler = new HolidayTagHandler(calendar);
     CalendarTagHandler calendarHandler = new CalendarTagHandler(calendar, holidayHandler);
     XmlParser parser = new XmlParser(
-        ImmutableList.of(calendarHandler, holidayHandler),
-        ImmutableList.of());
+        ImmutableList.<TagHandler>of(calendarHandler, holidayHandler),
+        ImmutableList.<ParsingListener>of());
     try {
       parser.parse(new BufferedInputStream(new FileInputStream(resource)));
       return calendar;
@@ -92,7 +95,11 @@ public class GPCalendarProvider {
   public static synchronized GPCalendarProvider getInstance() {
     if (ourInstance == null) {
       List<GPCalendar> calendars = readCalendars();
-      calendars.sort(Comparator.comparing(GPCalendar::getName));
+      Collections.sort(calendars, new Comparator<GPCalendar>() {
+        public int compare(GPCalendar o1, GPCalendar o2) {
+          return o1.getName().compareTo(o2.getName());
+        }
+      });
       ourInstance = new GPCalendarProvider(calendars);
     }
     return ourInstance;

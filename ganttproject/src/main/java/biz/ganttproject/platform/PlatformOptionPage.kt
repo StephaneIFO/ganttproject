@@ -18,8 +18,7 @@ along with GanttProject.  If not, see <http://www.gnu.org/licenses/>.
 */
 package biz.ganttproject.platform
 
-import biz.ganttproject.app.DIALOG_STYLESHEET
-import biz.ganttproject.app.DialogControllerPane
+import biz.ganttproject.app.*
 import biz.ganttproject.core.option.GPOptionGroup
 import com.bardsoftware.eclipsito.update.UpdateMetadata
 import javafx.application.Platform
@@ -31,6 +30,7 @@ import net.sourceforge.ganttproject.gui.options.OptionPageProviderBase
 import java.awt.BorderLayout
 import java.awt.Component
 import javax.swing.JPanel
+import javax.swing.SwingUtilities
 import org.eclipse.core.runtime.Platform as Eclipsito
 
 /**
@@ -49,13 +49,10 @@ class PlatformOptionPageProvider : OptionPageProviderBase("platform") {
     wrapper.add(jfxPanel, BorderLayout.CENTER)
     Eclipsito.getUpdater().getUpdateMetadata(UpdateOptions.updateUrl.value).thenAccept { updateMetadata ->
         Platform.runLater {
-          jfxPanel.scene = createScene(updateMetadata, null)
+          jfxPanel.scene = createScene(updateMetadata)
         }
     }.exceptionally { ex ->
-      GPLogger.logToLogger(ex)
-      Platform.runLater {
-        jfxPanel.scene = createScene(emptyList(), ex)
-      }
+      GPLogger.log(ex)
       null
     }
 
@@ -64,7 +61,7 @@ class PlatformOptionPageProvider : OptionPageProviderBase("platform") {
   }
 
 
-  private fun createScene(updateMetadata: List<UpdateMetadata>, ex: Throwable?): Scene {
+  private fun createScene(updateMetadata: List<UpdateMetadata>): Scene {
     val runningVersion = Eclipsito.getUpdater().installedUpdateVersions.maxOrNull() ?: "2900"
     val runningUpdateMetadata = UpdateMetadata(
       runningVersion,
@@ -76,11 +73,13 @@ class PlatformOptionPageProvider : OptionPageProviderBase("platform") {
       it.stylesheets.addAll(DIALOG_STYLESHEET)
     }
     val dialogBuildApi = DialogControllerPane(group)
-    if (ex != null) {
-      updatesFetchErrorDialog(ex, dialogBuildApi)
-    } else {
-      updatesAvailableDialog(filteredUpdates, filteredUpdates, { uiFacade.quitApplication(false) }, dialogBuildApi)
+    val updateUi = UpdateDialog(filteredUpdates, filteredUpdates) {
+      SwingUtilities.invokeLater {
+        uiFacade.quitApplication(false)
+        org.eclipse.core.runtime.Platform.restart()
+      }
     }
+    updateUi.addContent(dialogBuildApi)
     return Scene(group)
   }
 

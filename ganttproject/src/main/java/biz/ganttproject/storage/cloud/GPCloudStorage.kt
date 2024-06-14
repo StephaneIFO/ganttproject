@@ -67,7 +67,7 @@ val GPCLOUD_PORT = when (cloudEnvironment) {
   GPCloudEnv.LOCAL -> 80
   else -> 443
 }
-val GPCLOUD_ORIGIN = "$GPCLOUD_SCHEME://$GPCLOUD_HOST" + if (cloudEnvironment == GPCloudEnv.EMULATOR) ":$GPCLOUD_PORT" else ""
+val GPCLOUD_ORIGIN = "$GPCLOUD_SCHEME://$GPCLOUD_HOST" + if (cloudEnvironment == GPCloudEnv.LOCAL) ":$GPCLOUD_PORT" else ""
 val GPCLOUD_PROJECT_READ_URL = "$GPCLOUD_ORIGIN/p/read"
 val GPCLOUD_SIGNIN_URL = "$GPCLOUD_ORIGIN/__/auth/desktop"
 val GPCLOUD_SIGNUP_URL = "$GPCLOUD_ORIGIN/__/auth/handler"
@@ -88,6 +88,7 @@ val GPCLOUD_WEBSOCKET_PORT = when (cloudEnvironment) {
 
 val GPCLOUD_WEBSOCKET_URL = "$GPCLOUD_WEBSOCKET_SCHEME://$GPCLOUD_WEBSOCKET_HOST:$GPCLOUD_WEBSOCKET_PORT"
 enum class SceneId { BROWSER, SIGNUP, SIGNIN, OFFLINE, SPINNER, TOKEN_SPINNER, OFFLINE_BROWSER }
+typealias SceneChanger = (Node, SceneId) -> Unit
 
 /**
  * @author dbarashev@bardsoftware.com
@@ -132,6 +133,18 @@ class GPCloudStorage(
     }
     return myPane
   }
+
+  private fun nextPage(newPage: Node, sceneId: SceneId) {
+    Platform.runLater {
+      FXUtil.transitionCenterPane(myPane, newPage) {
+        dialogUi.resize()
+        if (sceneId == SceneId.BROWSER) {
+          browserPane.focus()
+        }
+      }
+    }
+  }
+
 }
 
 fun (GPCloudOptions).onAuthToken(): AuthTokenCallback {

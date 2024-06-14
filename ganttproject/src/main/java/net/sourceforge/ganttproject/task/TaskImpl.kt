@@ -149,8 +149,6 @@ internal class MutatorReentered(taskImpl: TaskImpl, private val delegate: Mutato
   }
 }
 
-data class EarliestStartValue(val startDate: GanttCalendar?, val isEnabled: Boolean)
-
 internal open class MutatorImpl(
   private val myManager: TaskManagerImpl,
   taskImpl: TaskImpl,
@@ -175,7 +173,7 @@ internal open class MutatorImpl(
 
   private val myStartChange = FieldChange(myPropertiesEventSender, taskImpl.start)
   private val myEndChange: FieldChange<GanttCalendar?> = FieldChange(myPropertiesEventSender, taskImpl.myEnd)
-  private val myThirdChange: FieldChange<EarliestStartValue> = FieldChange(myPropertiesEventSender, EarliestStartValue(taskImpl.myThird, taskImpl.thirdDateConstraint == 1))
+  private val myThirdChange: FieldChange<GanttCalendar?> = FieldChange(myPropertiesEventSender, taskImpl.myThird)
   private val myDurationChange = FieldChange(myPropertiesEventSender, taskImpl.duration)
 
   private val hasDateFieldsChange: Boolean get() = myStartChange.hasChange() || myDurationChange.hasChange() || myEndChange.hasChange() || myThirdChange.hasChange() || milestoneChange.hasChange()
@@ -189,10 +187,6 @@ internal open class MutatorImpl(
     }
     var hasActualDatesChange = false
     try {
-      milestoneChange.ifChanged {
-        taskImpl.isMilestone = it
-        taskUpdateBuilder?.setMilestone(milestoneChange.oldValue, it)
-      }
       myStartChange.ifChanged {
         taskImpl.start = it
       }
@@ -206,16 +200,14 @@ internal open class MutatorImpl(
         }
       }
       myThirdChange.ifChanged {
-        if (it.isEnabled) {
-          taskImpl.setThirdDate(it.startDate)
-          taskImpl.thirdDateConstraint = 1
-        } else {
-          taskImpl.setThirdDate(null)
-          taskImpl.thirdDateConstraint = 0
-        }
+        taskImpl.setThirdDate(it)
+      }
+      milestoneChange.ifChanged {
+        taskImpl.isMilestone = it
+        taskUpdateBuilder?.setMilestone(milestoneChange.oldValue, it)
       }
       if (hasDateFieldsChange) {
-        hasActualDatesChange = taskImpl.start != myStartChange.oldValue || taskImpl.duration != myDurationChange.oldValue || taskImpl.third != myThirdChange.oldValue.startDate
+        hasActualDatesChange = taskImpl.start != myStartChange.oldValue || taskImpl.duration != myDurationChange.oldValue
         if (hasActualDatesChange && taskUpdateBuilder != null) {
           if (taskImpl.start != myStartChange.oldValue) {
             taskUpdateBuilder.setStart(myStartChange.oldValue, taskImpl.start)
@@ -298,9 +290,7 @@ internal open class MutatorImpl(
     }
   }
 
-  override fun getThird(): GanttCalendar? = myThirdChange.newValueOrElse {
-    EarliestStartValue(taskImpl.myThird, taskImpl.thirdDateConstraint == 1)
-  }.startDate
+  override fun getThird(): GanttCalendar? = myThirdChange.newValueOrElse { taskImpl.myThird }
 
   override fun getActivities(): List<TaskActivity>? {
       return if (myStartChange.hasChange() || myDurationChange.hasChange()) {
@@ -323,9 +313,7 @@ internal open class MutatorImpl(
 
   override fun setEnd(end: GanttCalendar) { myEndChange.setValue(end) }
 
-  override fun setThird(third: GanttCalendar?, thirdDateConstraint: Int) {
-    myThirdChange.setValue(if (thirdDateConstraint == 1) EarliestStartValue(third!!, true) else EarliestStartValue(null, false))
-  }
+  override fun setThird(third: GanttCalendar, thirdDateConstraint: Int) { myThirdChange.setValue(third) }
 
   override fun setDuration(length: TimeDuration) {
     // If duration of task was set to 0 or less do not change it

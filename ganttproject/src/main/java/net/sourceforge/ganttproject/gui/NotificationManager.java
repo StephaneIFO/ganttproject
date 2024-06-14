@@ -18,16 +18,25 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package net.sourceforge.ganttproject.gui;
 
-import net.sourceforge.ganttproject.util.BrowserControl;
+import java.util.Collection;
 
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.HyperlinkListener;
-import java.util.List;
+
+import net.sourceforge.ganttproject.gui.NotificationComponent.AnimationView;
+import net.sourceforge.ganttproject.util.BrowserControl;
 
 public interface NotificationManager {
-  void addNotifications(List<NotificationItem> notifications);
+  /**
+   * Sets the animation view of the manager to the given view.
+   * @return the old view
+   */
+  AnimationView setAnimationView(AnimationView view);
+  void addNotifications(NotificationChannel channel, Collection<NotificationItem> notifications);
 
   void showNotification(NotificationChannel channel);
+
+  void hideNotification();
 
   HyperlinkListener DEFAULT_HYPERLINK_LISTENER = new HyperlinkListener() {
     @Override

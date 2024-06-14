@@ -219,11 +219,10 @@ public class ProxyDocument implements Document {
         resourceHandler.process(xmlProject);
         taskHandler.process(xmlProject);
 
-        List<GPOption<?>> optionsToSave = new ArrayList(myUIFacade.getGanttViewProvider().getOptions());
+        List<GPOption<?>> optionsToSave = new ArrayList(myProject.getTaskFilterManager().getOptions());
         optionsToSave.add(GPColorChooser.getRecentColorsOption());
         TaskSerializerKt.loadGanttView(xmlProject,
-          taskManager,
-          myUIFacade.getCurrentTaskView(), myUIFacade.getZoomManager(), myTaskVisibleFields, optionsToSave);
+          taskManager, myUIFacade.getCurrentTaskView(), myUIFacade.getZoomManager(), myTaskVisibleFields, optionsToSave);
 
         opener.getDefaultTagHandler().process(xmlProject);
         allocationHandler.process(xmlProject);

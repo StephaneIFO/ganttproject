@@ -65,7 +65,7 @@ public class MainApplication implements IPlatformRunnable {
     if (!appBuilder.isCli()) {
       appBuilder.withSplash();
       appBuilder.withWindowVisible();
-      appBuilder.whenWindowOpened(() -> {
+      appBuilder.whenWindowOpened(frame -> {
         AutoSaveKt.createAutosaveCleanup().run();
         return Unit.INSTANCE;
       });

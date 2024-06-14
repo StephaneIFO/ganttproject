@@ -32,7 +32,6 @@ interface LoggerApi<T> {
   fun debug(msg: String) {
     debug(msg, params = arrayOf())
   }
-  fun info(msg: String, vararg params: Any)
 }
 
 class LoggerImpl(name: String) : LoggerApi<Logger> {
@@ -50,10 +49,6 @@ class LoggerImpl(name: String) : LoggerApi<Logger> {
         .forEach { if (it.value.isNotBlank()) MDC.put(it.key, it.value) }
     delegate.debug(msg, *params)
     MDC.clear()
-  }
-
-  override fun info(msg: String, vararg params: Any) {
-    delegate.info(msg, *params)
   }
 
   override fun delegate() = delegate

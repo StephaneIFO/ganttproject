@@ -82,13 +82,6 @@ public class TextLengthCalculatorImpl implements TextMetrics {
     return myState;
   }
 
-  @Override
-  public String toString() {
-    return "TextLengthCalculatorImpl{" +
-      "myState=" + getState() +
-      '}';
-  }
-
   /** Internally used class containing unique variable for the current state */
   private static class State {
     // Internal values determining the uniqueness of the state
@@ -113,11 +106,6 @@ public class TextLengthCalculatorImpl implements TextMetrics {
     @Override
     public int hashCode() {
       return font.hashCode();
-    }
-
-    @Override
-    public String toString() {
-      return "Font=" + this.font.getFontName();
     }
   }
 }

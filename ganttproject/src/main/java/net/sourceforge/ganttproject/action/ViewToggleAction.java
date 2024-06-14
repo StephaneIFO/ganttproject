@@ -18,11 +18,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 package net.sourceforge.ganttproject.action;
 
-import biz.ganttproject.app.ViewPaneKt;
-import net.sourceforge.ganttproject.gui.view.ViewProvider;
+import net.sourceforge.ganttproject.chart.Chart;
+import net.sourceforge.ganttproject.gui.view.GPView;
 import net.sourceforge.ganttproject.gui.view.GPViewManager;
 
-import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.text.MessageFormat;
 
@@ -30,13 +29,17 @@ import java.text.MessageFormat;
  * @author bard
  */
 public class ViewToggleAction extends GPAction {
-  private final ViewProvider myViewProvider;
+  private final Chart myChart;
+
+  private final GPView myView;
 
   private final GPViewManager myViewManager;
 
-  public ViewToggleAction(GPViewManager viewManager, ViewProvider viewProvider) {
-    myViewProvider = viewProvider;
+  public ViewToggleAction(Chart chart, GPViewManager viewManager, GPView view) {
+    myChart = chart;
+    myView = view;
     myViewManager = viewManager;
+    updateAction();
   }
 
   @Override
@@ -46,11 +49,11 @@ public class ViewToggleAction extends GPAction {
 
   @Override
   public String getLocalizedName() {
-    return myViewProvider == null ? super.getLocalizedName() : ViewPaneKt.getLabel(myViewProvider);
+    return myChart == null ? null : myChart.getName();
   }
 
   @Override
   public void actionPerformed(ActionEvent e) {
-    myViewManager.getView(myViewProvider.getId()).setVisible(Boolean.TRUE == this.getValue(Action.SELECTED_KEY));
+    myViewManager.toggleVisible(myView);
   }
 }

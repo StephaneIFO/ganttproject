@@ -185,7 +185,7 @@ class StorageDialogBuilder(
     titleBox.children.addAll(projectName, buttonBar)
     this.dialogBuildApi.setHeader(titleBox)
     this.dialogBuildApi.setContent(contentPane)
-    this.dialogBuildApi.onShown = {
+    this.dialogBuildApi.beforeShow = {
       if (mode == Mode.SAVE) {
         btnSave.fire()
         btnSave.requestFocus()
@@ -257,12 +257,10 @@ class StorageDialogBuilder(
 
     fun error(e: Throwable) {
       dialogController.showAlert(RootLocalizer.create("error.channel.itemTitle"), createAlertBody(e.message ?: ""))
-      e.printStackTrace()
     }
 
     fun error(message: String) {
       dialogController.showAlert(RootLocalizer.create("error.channel.itemTitle"), createAlertBody(message))
-      Thread.dumpStack()
     }
 
     fun message(message: String) {

@@ -71,6 +71,7 @@ class CSVOptions {
       }
     }
     createTaskExportOption("webLink")
+    createTaskExportOption("notes")
     myResourceOptions["id"] = DefaultBooleanOption("id", true)
     ResourceDefaultColumn.values().filter { it != ResourceDefaultColumn.ID }.map {
       DefaultBooleanOption(it.stub.id, true)
@@ -85,7 +86,7 @@ class CSVOptions {
 
   companion object {
     private val ourIgnoredTaskColumns: Set<TaskDefaultColumn> = ImmutableSet.of(
-      TaskDefaultColumn.TYPE, TaskDefaultColumn.INFO
+      TaskDefaultColumn.TYPE, TaskDefaultColumn.PRIORITY, TaskDefaultColumn.INFO
     )
   }
 }

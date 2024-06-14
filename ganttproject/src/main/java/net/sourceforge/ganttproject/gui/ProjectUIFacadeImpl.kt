@@ -38,8 +38,6 @@ import kotlinx.coroutines.channels.BroadcastChannel
 import kotlinx.coroutines.channels.Channel
 import net.sourceforge.ganttproject.GPLogger
 import net.sourceforge.ganttproject.IGanttProject
-import net.sourceforge.ganttproject.action.CancelAction
-import net.sourceforge.ganttproject.action.OkAction
 import net.sourceforge.ganttproject.document.Document
 import net.sourceforge.ganttproject.document.Document.DocumentException
 import net.sourceforge.ganttproject.document.DocumentManager
@@ -60,7 +58,6 @@ import java.io.File
 import java.io.IOException
 import java.util.concurrent.Executors
 import java.util.logging.Level
-import javax.swing.JOptionPane
 import javax.swing.SwingUtilities
 
 
@@ -103,7 +100,6 @@ class ProjectUIFacadeImpl(
       ).run()
     } finally {
       isSaving = false
-      myWorkbenchFacade.activeChart.focus()
     }
   }
 
@@ -196,34 +192,32 @@ class ProjectUIFacadeImpl(
    * @return true when the project is **not** modified or is allowed to be
    * discarded
    */
-  override fun ensureProjectSaved(project: IGanttProject): Barrier<Boolean> {
-    if (!project.isModified) {
-      return ResolvedBarrier(true)
-    }
-    val result = SimpleBarrier<Boolean>()
-    myWorkbenchFacade.showOptionDialog(JOptionPane.QUESTION_MESSAGE, i18n.getText("msg1"), arrayOf(
-      CancelAction.create("cancel") {
-        result.resolve(false)
-      },
-      OkAction.create("yes") {
-        val onFinish = Channel<Boolean>()
-        CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher()).launch {
-          try {
-            if (onFinish.receive()) {
-              result.resolve(true)
+  override fun ensureProjectSaved(project: IGanttProject): Barrier<Boolean> =
+    if (project.isModified) {
+      val saveChoice = myWorkbenchFacade.showConfirmationDialog(i18n.getText("msg1"),
+          i18n.getText("warning"))
+      when (saveChoice) {
+        UIFacade.Choice.CANCEL, null -> ResolvedBarrier(false)
+        UIFacade.Choice.NO -> ResolvedBarrier(true)
+        UIFacade.Choice.YES, UIFacade.Choice.OK -> {
+          SimpleBarrier<Boolean>().also { barrier ->
+            val onFinish = Channel<Boolean>()
+            CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher()).launch {
+              try {
+                if (onFinish.receive()) {
+                  barrier.resolve(true)
+                }
+              } catch (e: Exception) {
+                myWorkbenchFacade.showErrorDialog(e)
+              }
             }
-          } catch (e: Exception) {
-            myWorkbenchFacade.showErrorDialog(e)
+            saveProject(project, onFinish)
           }
         }
-        saveProject(project, onFinish)
-      },
-      OkAction.create("no") {
-        result.resolve(true)
-      })
-    )
-    return result
-  }
+      }
+    } else {
+      ResolvedBarrier(true)
+    }
 
 
   @Throws(IOException::class, DocumentException::class)
@@ -322,6 +316,7 @@ class ProjectUIFacadeImpl(
       if (result) {
         beforeClose()
         project.close()
+        myWorkbenchFacade.setStatusText(i18n.getText("project.new.description"))
         showNewProjectWizard(project)
       }
     }

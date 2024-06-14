@@ -219,7 +219,8 @@ class GPTreeTableViewSkin<T>(private val table: GPTreeTableView<T>) : TreeTableV
 
   init {
     this.virtualFlow.positionProperty().addListener { _, _, _ ->
-      FXUtil.runLater { updateScrollValue() }
+      Platform.runLater { updateScrollValue() }
+
     }
 
     table.addEventFilter(KeyEvent.KEY_PRESSED) {event ->
@@ -264,7 +265,7 @@ class GPTreeTableViewSkin<T>(private val table: GPTreeTableView<T>) : TreeTableV
   fun vbarWidth() = (this.virtualFlow as MyVirtualFlow).vbarWidth()
 
   fun scrollTo(row: Int) {
-    this.virtualFlow.scrollTo(row+1)
+    this.virtualFlow.scrollTo(row)
     updateScrollValue()
   }
 

@@ -57,7 +57,6 @@ public class ResourceDeleteAction extends ResourceAction {
         public void run() {
           deleteResources(selectedResources);
           myUIFacade.refresh();
-          myUIFacade.getActiveChart().focus();
         }
       });
     }
