@@ -7,14 +7,14 @@ buildscript {
     }
     dependencies {
         classpath "gradle.plugin.io.miret.etienne.gradle:sass-gradle-plugin:1.+"
-        classpath 'org.openjfx:javafx-plugin:0.1.0'
+        classpath 'org.openjfx:javafx-plugin:0.0.13'
     }
 }
 
 plugins {
     id "org.jetbrains.kotlin.jvm"
     id "maven-publish"
-    id "nu.studer.jooq" version "9.0"
+    id "nu.studer.jooq" version "8.2.1"
     id "org.jetbrains.kotlin.plugin.serialization" version "$kotlin_version"
 }
 
@@ -32,7 +32,8 @@ javafx {
 }
 
 configurations {
-    implementation.extendsFrom providedCompile
+    exportedLibs
+    exported.extendsFrom archives, providedCompile, exportedLibs
 }
 
 dependencies {
@@ -41,16 +42,21 @@ dependencies {
     providedCompile project(path: ':biz.ganttproject.app.localization')
 
     api files("lib/core/eclipsito.jar")
+    exportedLibs files("lib/core/eclipsito.jar")
+
+    implementation configurations.direct
+    implementation configurations.providedCompile
+    implementation configurations.exportedLibs
+
     implementation fileTree(dir: project.ext.libDir, include: ['*.jar'])
     implementation files('src/main/resources/resources')
 
-    implementation group: 'com.h2database', name: 'h2', version: '2.2.+'
-    implementation 'org.jooq:jooq:3.19.8'
-    jooqGenerator 'org.jooq:jooq-codegen-gradle:3.19.8'
-    jooqGenerator 'org.jooq:jooq-meta-extensions:3.19.8'
+    implementation group: 'com.h2database', name: 'h2', version: '2.1.+'
+    implementation 'org.jooq:jooq:3.17.5'
+    jooqGenerator 'org.jooq:jooq-meta-extensions'
 
-    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
-    implementation 'net.harawata:appdirs:1.2.2'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.5.1'
+    implementation 'net.harawata:appdirs:1.2.1'
 
     testImplementation group: 'org.easymock', name: 'easymock', version: '5.+'
     testImplementation group: 'org.junit.jupiter', name: 'junit-jupiter-api', version: '5.+'

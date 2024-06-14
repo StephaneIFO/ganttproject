@@ -43,14 +43,6 @@ interface ProjectDatabaseTxn {
 
   @Throws(ProjectDatabaseException::class)
   fun redo()
-  fun rollback()
-}
-
-class DummyTxn: ProjectDatabaseTxn {
-  override fun commit() {}
-  override fun undo() {}
-  override fun redo() {}
-  override fun rollback() {}
 }
 
 typealias ColumnConsumer = Pair<SimpleSelect, (Int, Any?)->Unit>
@@ -89,7 +81,7 @@ interface ProjectDatabase {
   fun init()
 
   @Throws(ProjectDatabaseException::class)
-  fun startLog(baseTxnId: BaseTxnId)
+  fun startLog(baseTxnId: String)
 
   fun createTaskUpdateBuilder(task: Task): TaskUpdateBuilder
 
@@ -130,7 +122,7 @@ interface ProjectDatabase {
   fun validateColumnConsumer(columnConsumer: ColumnConsumer)
 
   @Throws(ProjectDatabaseException::class)
-  fun applyUpdate(logRecords: List<XlogRecord>, baseTxnId: BaseTxnId, targetTxnId: BaseTxnId)
+  fun applyUpdate(logRecords: List<XlogRecord>, baseTxnId: String, targetTxnId: String)
 
   @Throws(ProjectDatabaseException::class)
   fun readAllTasks(): List<TaskRecord>

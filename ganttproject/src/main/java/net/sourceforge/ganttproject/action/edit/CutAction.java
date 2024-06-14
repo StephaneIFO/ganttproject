@@ -19,7 +19,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
 package net.sourceforge.ganttproject.action.edit;
 
 import net.sourceforge.ganttproject.action.GPAction;
-import net.sourceforge.ganttproject.gui.UIFacade;
 import net.sourceforge.ganttproject.gui.UIUtil;
 import net.sourceforge.ganttproject.gui.view.GPViewManager;
 import net.sourceforge.ganttproject.undo.GPUndoManager;
@@ -32,13 +31,11 @@ import java.beans.PropertyChangeListener;
 public class CutAction extends GPAction {
   private final GPViewManager myViewmanager;
   private final GPUndoManager myUndoManager;
-  private final UIFacade myUiFacade;
 
-  public CutAction(GPViewManager viewManager, GPUndoManager undoManager, UIFacade uiFacade) {
+  public CutAction(GPViewManager viewManager, GPUndoManager undoManager) {
     super("cut");
     myViewmanager = viewManager;
     myUndoManager = undoManager;
-    myUiFacade = uiFacade;
   }
 
   @Override
@@ -52,12 +49,11 @@ public class CutAction extends GPAction {
         myViewmanager.getSelectedArtefacts().startMoveClipboardTransaction();
 //      }
     //});
-    myUiFacade.getActiveChart().focus();
   }
 
   @Override
   public CutAction asToolbarAction() {
-    final CutAction result = new CutAction(myViewmanager, myUndoManager, myUiFacade);
+    final CutAction result = new CutAction(myViewmanager, myUndoManager);
     result.setFontAwesomeLabel(UIUtil.getFontawesomeLabel(result));
     this.addPropertyChangeListener(new PropertyChangeListener() {
       @Override

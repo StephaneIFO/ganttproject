@@ -37,7 +37,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.ArrayList;
 import java.util.List;
 
 public class ExporterToHTML extends StylesheetExporterBase {
@@ -59,9 +58,7 @@ public class ExporterToHTML extends StylesheetExporterBase {
 
   @Override
   public List<GPOptionGroup> getSecondaryOptions() {
-    List<GPOptionGroup> result = new ArrayList<>();
-    result.add(createExportRangeOptionGroup());
-    return result;
+    return null;
   }
 
   @Override

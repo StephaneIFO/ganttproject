@@ -28,10 +28,23 @@ import biz.ganttproject.core.time.TimeDuration;
 import biz.ganttproject.customproperty.CustomProperty;
 import biz.ganttproject.customproperty.CustomPropertyClass;
 import biz.ganttproject.customproperty.CustomPropertyDefinition;
-import net.sf.mpxj.*;
+import net.sf.mpxj.DateRange;
+import net.sf.mpxj.Day;
+import net.sf.mpxj.Duration;
+import net.sf.mpxj.FieldType;
+import net.sf.mpxj.MPXJException;
+import net.sf.mpxj.Priority;
+import net.sf.mpxj.ProjectCalendar;
+import net.sf.mpxj.ProjectCalendarException;
+import net.sf.mpxj.ProjectCalendarHours;
+import net.sf.mpxj.ProjectFile;
+import net.sf.mpxj.Rate;
+import net.sf.mpxj.RelationType;
+import net.sf.mpxj.Resource;
+import net.sf.mpxj.ResourceType;
+import net.sf.mpxj.TaskMode;
+import net.sf.mpxj.TimeUnit;
 import biz.ganttproject.customproperty.CustomPropertyHolder;
-import net.sf.mpxj.common.DateHelper;
-import net.sf.mpxj.common.NumberHelper;
 import net.sourceforge.ganttproject.GPLogger;
 import net.sourceforge.ganttproject.GanttTask;
 import net.sourceforge.ganttproject.IGanttProject;
@@ -113,7 +126,9 @@ class ProjectFileExporter {
   }
 
   private void copyHours(ProjectCalendarHours from, ProjectCalendarHours to) {
-      to.addAll(from);
+    for (DateRange range : from) {
+      to.addRange(range);
+    }
   }
 
   private void exportHolidays(ProjectCalendar calendar) {
@@ -129,8 +144,8 @@ class ProjectFileExporter {
       if (!h.isRecurring && h.getType() == CalendarEvent.Type.WORKING_DAY && !calendar.isWorkingDate(h.myDate)) {
         Date d = h.myDate;
         ProjectCalendarException exception = calendar.addCalendarException(d, d);
-        exception.add(ProjectCalendar.DEFAULT_WORKING_MORNING);
-        exception.add(ProjectCalendar.DEFAULT_WORKING_AFTERNOON);
+        exception.addRange(ProjectCalendar.DEFAULT_WORKING_MORNING);
+        exception.addRange(ProjectCalendar.DEFAULT_WORKING_AFTERNOON);
       }
     }
   }
@@ -338,7 +353,7 @@ class ProjectFileExporter {
         alias = e.getValue().getName();
 
       }
-      myOutputProject.getCustomFields().getOrCreate(e.getValue()).setAlias(alias);
+      myOutputProject.getCustomFields().getCustomField(e.getValue()).setAlias(alias);
     }
   }
 
@@ -352,9 +367,7 @@ class ProjectFileExporter {
     mpxjResource.setType(ResourceType.WORK);
     mpxjResource.setCanLevel(false);
     if (hr.getStandardPayRate() != BigDecimal.ZERO) {
-      var rate = new Rate(hr.getStandardPayRate(), TimeUnit.DAYS);
-      mpxjResource.getCostRateTable(0).set(0, new CostRateTableEntry(DateHelper.START_DATE_NA, DateHelper.END_DATE_NA, NumberHelper.DOUBLE_ZERO, rate));
-      assert rate.equals(mpxjResource.getStandardRate());
+      mpxjResource.setStandardRate(new Rate(hr.getStandardPayRate(), TimeUnit.DAYS));
     }
 
     exportDaysOff(hr, mpxjResource);
@@ -393,7 +406,7 @@ class ProjectFileExporter {
   private void exportDaysOff(HumanResource hr, Resource mpxjResource) throws MPXJException {
     DefaultListModel daysOff = hr.getDaysOff();
     if (!daysOff.isEmpty()) {
-      ProjectCalendar resourceCalendar = mpxjResource.addCalendar();
+      ProjectCalendar resourceCalendar = mpxjResource.addResourceCalendar();
       resourceCalendar.addDefaultCalendarHours();
       exportWeekends(resourceCalendar);
       resourceCalendar.setParent(myOutputProject.getDefaultCalendar());

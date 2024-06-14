@@ -61,17 +61,11 @@ class LocalizedString(
     return this
   }
 
-  fun update(vararg args: Any): LocalizedString {
-    this.args = args.map { it.toString() }.toList()
-    observable.value = build()
-    return this
-  }
-
   internal fun update() {
     observable.value = build()
   }
 
-  private fun build(): String = i18n.formatText(key, *(args.toTypedArray()))
+  private fun build(): String = i18n.formatText(key, *args.toTypedArray())
 }
 
 /**
@@ -178,11 +172,11 @@ open class DefaultLocalizer(
  * This localizer searches for key values in a map. The map values are lambdas which
  * allows for values calculation.
  */
-class MappingLocalizer(val key2lambda: Map<String, ()->LocalizedString?>, val unhandledKey: (String)->LocalizedString?) : Localizer {
+class MappingLocalizer(val key2lambda: Map<String, (()->String)?>, val unhandledKey: (String)->String?) : Localizer {
   override fun create(key: String) = LocalizedString(key, this)
 
   override fun formatTextOrNull(key: String, vararg args: Any): String? =
-    key2lambda[key]?.invoke()?.update(*args)?.value ?: unhandledKey(key)?.update(*args)?.value
+    key2lambda[key]?.invoke() ?: unhandledKey(key)
 }
 
 /**

@@ -56,17 +56,10 @@ public class GanttDialogProperties {
               }
             }
             uiFacade.refresh();
-            uiFacade.getActiveChart().focus();
           }
         });
       }
-    }, new CancelAction() {
-      @Override
-      public void actionPerformed(ActionEvent e) {
-        super.actionPerformed(e);
-        uiFacade.getActiveChart().focus();
-      }
-    } };
+    }, CancelAction.EMPTY };
 
     StringBuffer taskNames = new StringBuffer();
     for (int i = 0; i < myTasks.length; i++) {

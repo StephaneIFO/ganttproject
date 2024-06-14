@@ -23,7 +23,6 @@ import biz.ganttproject.core.io.parseXmlProject
 import biz.ganttproject.core.io.walkTasksDepthFirst
 import biz.ganttproject.core.time.CalendarFactory
 import biz.ganttproject.lib.fx.SimpleTreeCollapseView
-import cloud.ganttproject.colloboque.db.project_template.tables.records.ProjectfilesnapshotRecord
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.channels.Channel
@@ -31,47 +30,32 @@ import kotlinx.coroutines.launch
 import net.sourceforge.ganttproject.GPLogger
 import net.sourceforge.ganttproject.GanttProjectImpl
 import net.sourceforge.ganttproject.parser.TaskLoader
-import net.sourceforge.ganttproject.storage.BaseTxnId
-import net.sourceforge.ganttproject.storage.InputXlog
-import net.sourceforge.ganttproject.storage.ServerResponse
-import net.sourceforge.ganttproject.storage.XlogRecord
-import net.sourceforge.ganttproject.storage.generateSqlStatement
+import net.sourceforge.ganttproject.storage.*
 import org.jooq.DSLContext
 import org.jooq.SQLDialect
 import org.jooq.conf.RenderNameCase
 import org.jooq.impl.DSL
 import java.sql.Connection
 import java.text.DateFormat
+import java.time.LocalDateTime
 import java.util.*
 import java.util.concurrent.Executors
 
 internal typealias ProjectRefid = String
-internal typealias BaseTxnId = Long
+internal typealias BaseTxnId = String
 
 class ColloboqueServerException: Exception {
   constructor(message: String): super(message)
   constructor(message: String, cause: Throwable): super(message, cause)
 }
 
-val localeApi = object : CalendarFactory() {
-    init {
-      setLocaleApi(object : LocaleApi {
-        override fun getLocale(): Locale {
-          return Locale.US
-        }
-
-        override fun getShortDateFormat(): DateFormat {
-          return DateFormat.getDateInstance(DateFormat.SHORT, Locale.US)
-        }
-      })
-    }
-  }
-
 class ColloboqueServer(
+  private val initProject: (projectRefid: String) -> Unit,
   private val connectionFactory: (projectRefid: String) -> Connection,
-  private val storageApi: StorageApi,
+  private val initInputChannel: Channel<InitRecord>,
   private val updateInputChannel: Channel<InputXlog>,
   private val serverResponseChannel: Channel<ServerResponse>) {
+  private val refidToBaseTxnId: MutableMap<ProjectRefid, ProjectRefid> = mutableMapOf()
 
   private val wsCommunicationScope = CoroutineScope(Executors.newSingleThreadExecutor().asCoroutineDispatcher())
 
@@ -81,50 +65,34 @@ class ColloboqueServer(
     }
   }
 
-  private fun <T> txn(projectRefid: ProjectRefid, code: (DSLContext)->T): T {
-    return connectionFactory(projectRefid).use {cxn ->
-      DSL.using(cxn, SQLDialect.POSTGRES)
-        .configuration().deriveSettings { it.withRenderNameCase(RenderNameCase.LOWER) }
-        .dsl().transactionResult { it -> code(it.dsl()) }
-    }
-  }
-
-  fun init(projectRefid: ProjectRefid, projectXml: String): BaseTxnId {
+  fun init(projectRefid: ProjectRefid, projectXml: String? = null): BaseTxnId {
     try {
-      storageApi.initProject(projectRefid)
-      storageApi.insertActualSnapshot(projectRefid, NULL_TXN_ID, projectXml)
-      loadProject(projectRefid, projectXml)
-      return NULL_TXN_ID
+      initProject(projectRefid)
+      connectionFactory(projectRefid).use {
+        if (projectXml != null) {
+          DSL.using(it, SQLDialect.POSTGRES)
+            .configuration()
+            .deriveSettings { it.withRenderNameCase(RenderNameCase.LOWER) }
+            .dsl().let { dsl ->
+              loadProject(projectXml, dsl)
+            }
+        }
+        // TODO: get from the database
+        return "0".also {
+          refidToBaseTxnId[projectRefid] = it
+        }
+      }
     } catch (e: Exception) {
       throw ColloboqueServerException("Failed to init project $projectRefid", e)
     }
-  }
-
-  private fun loadProject(projectRefid: ProjectRefid, xmlInput: String) {
-    loadProject(projectRefid, xmlInput, storageApi)
   }
 
   private suspend fun processUpdatesLoop() {
     for (inputXlog in updateInputChannel) {
       LOG.debug("Next xlog: $inputXlog")
       try {
-        val projectRefid = inputXlog.projectRefid
-        val baseTxnId = inputXlog.baseTxnId
-
-        val actualSnapshot = storageApi.getProjectSnapshot(projectRefid) ?: throw ColloboqueServerException("Project $projectRefid is not yet initialized")
-        val expectedBaseTxnId = actualSnapshot.baseTxnId
-        if (expectedBaseTxnId != baseTxnId) {
-          throw ColloboqueServerException("Base txn ID mismatch. Expected: $expectedBaseTxnId. Received: $baseTxnId")
-        }
-
-        // TODO: we are inserting and applying xlog records, so we need to lock the base txn ID, to prevent its
-        // concurrent updates.
-        storageApi.insertXlogs(inputXlog.projectRefid, inputXlog.baseTxnId, inputXlog.transactions)
-
-        val newBaseTxnId = applyXlog(inputXlog)
-        val newProjectXml = buildProjectXml(projectRefid, actualSnapshot)
-        storageApi.insertActualSnapshot(projectRefid, newBaseTxnId, newProjectXml.projectXml)
-
+        val newBaseTxnId = applyXlog(inputXlog.projectRefid, inputXlog.baseTxnId, inputXlog.transactions[0])
+          ?: continue
         val response = ServerResponse.CommitResponse(
           inputXlog.baseTxnId,
           newBaseTxnId,
@@ -145,72 +113,54 @@ class ColloboqueServer(
     }
   }
 
-  private fun applyXlog(xlog: InputXlog): BaseTxnId {
-    return xlog.transactions.fold(xlog.baseTxnId) { txnId: BaseTxnId, xlogRecord: XlogRecord ->
-      applyXlog(xlog.projectRefid, txnId, xlogRecord)
-    }
-  }
   /**
    * Performs transaction commit if `baseTxnId` corresponds to the value hold by the server.
    * Returns new baseTxnId on success.
    */
-  private fun applyXlog(projectRefid: ProjectRefid, baseTxnId: BaseTxnId, xlog: XlogRecord): BaseTxnId {
-    LOG.debug(">> applyXlog project={} baseTxnId={}", projectRefid, baseTxnId)
-    if (xlog.colloboqueOperations.isEmpty()) {
-      return baseTxnId
-    }
-    return try {
-      txn(projectRefid) { context ->
-        xlog.colloboqueOperations.forEach {
-          LOG.debug("... applying operation={}", it)
-          context.execute(generateSqlStatement(context, it))
-        }
-        generateNextTxnId(projectRefid, baseTxnId, xlog)
+  private fun applyXlog(projectRefid: ProjectRefid, baseTxnId: String, transaction: XlogRecord): String? {
+    if (transaction.colloboqueOperations.isEmpty()) throw ColloboqueServerException("Empty transactions not allowed")
+    val expectedBaseTxnId = getBaseTxnId(projectRefid)
+    if (expectedBaseTxnId != baseTxnId) throw ColloboqueServerException("Invalid transaction id $baseTxnId, expected $expectedBaseTxnId")
+    try {
+      connectionFactory(projectRefid).use { connection ->
+        return DSL
+          .using(connection, SQLDialect.POSTGRES)
+          .transactionResult { config ->
+            val context = config.dsl()
+            transaction.colloboqueOperations.forEach { context.execute(generateSqlStatement(context, it)) }
+            generateNextTxnId(projectRefid, baseTxnId, transaction)
+            // TODO: update transaction id in the database
+          }.also { refidToBaseTxnId[projectRefid] = it }
       }
     } catch (e: Exception) {
       throw ColloboqueServerException("Failed to commit transaction", e)
-    } finally {
-      LOG.debug("<< applyXlog")
     }
   }
 
-  private fun getTransactionLogs(projectRefid: ProjectRefid, baseTxnId: BaseTxnId = NULL_TXN_ID) =
-    storageApi.getTransactionLogs(projectRefid, baseTxnId)
 
-
-  data class BuildProjectXmlResult(val projectXml: String, val txnId: BaseTxnId)
-
-  /**
-   * Takes the actual project snapshot, applies the recorded update logs and builds a new XML
-   */
-  fun buildProjectXml(projectRefid: ProjectRefid, baseSnapshot: ProjectfilesnapshotRecord): BuildProjectXmlResult {
-    val baseTxnId = baseSnapshot.baseTxnId!!
-    LOG.debug(">> buildProjectXml refid={} baseTxnId={}", projectRefid, baseTxnId)
-    val transactionLogs = getTransactionLogs(projectRefid, baseTxnId)
-    val updatedXml = transactionLogs.fold(baseSnapshot.projectXml!!) { xml, xlog -> updateProjectXml(xml, xlog) }
-    LOG.debug("..result: {}", updatedXml)
-    LOG.debug("<< buildProjectXml")
-    return BuildProjectXmlResult(updatedXml, baseTxnId)
-  }
+  fun getBaseTxnId(projectRefid: ProjectRefid) = refidToBaseTxnId[projectRefid]
 
   // TODO
-  private fun generateNextTxnId(projectRefid: ProjectRefid, oldTxnId: BaseTxnId, transaction: XlogRecord): BaseTxnId {
-    return oldTxnId + 1
+  private fun generateNextTxnId(projectRefid: ProjectRefid, oldTxnId: String, transaction: XlogRecord): String {
+    return LocalDateTime.now().toString()
   }
-
-  fun getProjectXml(projectRefid: String): ProjectfilesnapshotRecord =
-    storageApi.getProjectSnapshot(projectRefid) ?: run {
-      val baseTxnId = init(projectRefid, PROJECT_XML_TEMPLATE)
-      ProjectfilesnapshotRecord().apply {
-        this.baseTxnId = baseTxnId
-        this.projectXml = PROJECT_XML_TEMPLATE
-      }
-    }
-
 }
 
 
-internal fun loadProject(projectRefid: ProjectRefid, xmlInput: String, storageApi: StorageApi) {
+private fun loadProject(xmlInput: String, dsl: DSLContext) {
+  object : CalendarFactory() {
+    init {
+      setLocaleApi(object : LocaleApi {
+        override fun getLocale(): Locale {
+          return Locale.US
+        }
+
+        override fun getShortDateFormat(): DateFormat {
+          return DateFormat.getDateInstance(DateFormat.SHORT, Locale.US)
+        }
+      })
+    }
+  }
   val bufferProject = GanttProjectImpl()
   val taskLoader = TaskLoader(bufferProject.taskManager, SimpleTreeCollapseView())
   parseXmlProject(xmlInput).let { xmlProject ->
@@ -220,8 +170,10 @@ internal fun loadProject(projectRefid: ProjectRefid, xmlInput: String, storageAp
       true
     }
   }
-  bufferProject.taskManager.tasks.forEach { task -> storageApi.insertTask(projectRefid, task) }
+  bufferProject.taskManager.tasks.forEach { task ->
+    buildInsertTaskQuery(dsl, task).execute()
+  }
+
 }
 
 private val LOG = GPLogger.create("ColloboqueServer")
-private val NULL_TXN_ID = 0L

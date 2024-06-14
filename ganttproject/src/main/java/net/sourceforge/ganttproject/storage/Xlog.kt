@@ -20,7 +20,6 @@ package net.sourceforge.ganttproject.storage
 
 import kotlinx.serialization.Serializable
 
-typealias BaseTxnId = Long
 /**
  * Data for the initialization of the Colloboque database.
  */
@@ -92,7 +91,7 @@ data class XlogRecord(
  */
 @Serializable
 data class InputXlog(
-  val baseTxnId: BaseTxnId,
+  val baseTxnId: String,
   val userId: String,
   val projectRefid: String,
   val transactions: List<XlogRecord>,
@@ -112,8 +111,8 @@ sealed class ServerResponse {
    */
   @Serializable
   data class CommitResponse(
-    val baseTxnId: BaseTxnId,
-    val newBaseTxnId: BaseTxnId,
+    val baseTxnId: String,
+    val newBaseTxnId: String,
     val projectRefid: String,
     val logRecords: List<XlogRecord>,
     val clientTrackingCode: String
@@ -124,7 +123,7 @@ sealed class ServerResponse {
    * */
   @Serializable
   data class ErrorResponse(
-    val baseTxnId: BaseTxnId,
+    val baseTxnId: String,
     val projectRefid: String,
     val message: String
   ) : ServerResponse()

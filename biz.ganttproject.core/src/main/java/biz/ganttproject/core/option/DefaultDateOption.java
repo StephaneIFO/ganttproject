@@ -18,16 +18,12 @@ along with GanttProject.  If not, see <http://www.gnu.org/licenses/>.
  */
 package biz.ganttproject.core.option;
 
-import kotlin.Pair;
-import kotlin.jvm.functions.Function1;
 import org.w3c.util.DateParser;
 import org.w3c.util.InvalidDateException;
 
 import java.util.Date;
 
 public class DefaultDateOption extends GPAbstractOption<Date> implements DateOption {
-
-  private Function1<Date, Pair<Boolean, String>> valueValidator;
 
   public DefaultDateOption(String id) {
     super(id);
@@ -52,13 +48,4 @@ public class DefaultDateOption extends GPAbstractOption<Date> implements DateOpt
     }
   }
 
-  @Override
-  public Function1<Date, Pair<Boolean, String>> getValueValidator() {
-    return valueValidator;
-  }
-
-  @Override
-  public void setValueValidator(Function1<Date, Pair<Boolean, String>> validator) {
-    valueValidator = validator;
-  }
 }

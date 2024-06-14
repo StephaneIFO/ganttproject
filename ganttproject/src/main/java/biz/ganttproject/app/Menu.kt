@@ -232,8 +232,11 @@ fun GPAction.asMenuItem(): MenuItem =
         }
         checkBox.contentDisplay = ContentDisplay.GRAPHIC_ONLY
         checkBox.isSelected = isSelected as Boolean
-        checkBox.onAction = EventHandler { e ->
+        checkBox.onAction = EventHandler { _ ->
           this.putValue(Action.SELECTED_KEY, checkBox.isSelected)
+          SwingUtilities.invokeLater {
+            this.actionPerformed(null)
+          }
         }
 
         gpActionListener[this]?.let { this.removePropertyChangeListener(it) }

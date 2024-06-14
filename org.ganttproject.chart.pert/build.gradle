@@ -1,9 +1,7 @@
-configurations {
-    implementation.extendsFrom(providedCompile)
-}
 dependencies {
-    providedCompile project(path: ':biz.ganttproject.core')
-    providedCompile project(path: ':ganttproject')
+    providedCompile project(path: ':ganttproject', configuration: 'exported')
+
+    implementation configurations.providedCompile
 }
 
 task copyPlugin(dependsOn: jar) {

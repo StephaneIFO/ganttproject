@@ -25,7 +25,6 @@ import biz.ganttproject.core.table.ColumnList
 import biz.ganttproject.customproperty.*
 import biz.ganttproject.core.option.Completion
 import biz.ganttproject.lib.fx.VBoxBuilder
-import biz.ganttproject.lib.fx.createToggleSwitch
 import biz.ganttproject.lib.fx.vbox
 import de.jensd.fx.glyphs.materialicons.MaterialIcon
 import de.jensd.fx.glyphs.materialicons.MaterialIconView
@@ -100,20 +99,19 @@ class ColumnManager(
     // and they are ordered the same way are shown in the table.
     listItems.setAll(mergedColumns.sortedWith { col1, col2 -> columnsOrder(col1, col2) }.map { col ->
       val isCustom = customColumnsManager.definitions.find { it.id == col.id } != null
-      ColumnAsListItem(col, col.isVisible, isCustom, customColumnsManager, customPropertyEditor::updateVisibility)
+      ColumnAsListItem(col, col.isVisible, isCustom, customColumnsManager)
     })
     customColumnsManager.definitions.forEach { def ->
       if (mergedColumns.find { it.id == def.id } == null) {
         val columnStub = ColumnList.ColumnStub(def.id, def.name, false, -1, -1)
         mergedColumns.add(columnStub)
-        listItems.add(ColumnAsListItem(columnStub, columnStub.isVisible, true, customColumnsManager, customPropertyEditor::updateVisibility))
+        listItems.add(ColumnAsListItem(columnStub, columnStub.isVisible, true, customColumnsManager))
       }
     }
     listView.items = listItems
     listView.cellFactory = Callback { CellImpl() }
     val propertySheetBox = vbox {
       addClasses("property-sheet-box")
-      add(customPropertyEditor.visibilityTogglePane)
       add(customPropertyEditor.propertySheetLabel, Pos.CENTER_LEFT, Priority.NEVER)
       add(customPropertyEditor.propertySheet.node, Pos.CENTER, Priority.ALWAYS)
       add(errorPane)
@@ -134,7 +132,7 @@ class ColumnManager(
   private fun onAddColumn() {
     val item = ColumnAsListItem(
       null,
-      isVisible = true, isCustom = true, customColumnsManager, customPropertyEditor::updateVisibility
+      isVisible = true, isCustom = true, customColumnsManager
     ).also {
       val title = RootLocalizer.create("addCustomColumn").also {
         it.update("")
@@ -266,31 +264,17 @@ internal class CustomPropertyEditor(
 ) {
   private val localizer = run {
     val fallback1 = MappingLocalizer(mapOf()) {
-      when {
-        it.endsWith(".label") -> {
-          val key = it.split('.', limit = 2)[0]
-          RootLocalizer.create(key)
-        }
-        it == "columnExists" -> RootLocalizer.create(it)
-        else -> null
+      if (it.endsWith(".label")) {
+        val key = it.split('.', limit = 2)[0]
+        RootLocalizer.formatText(key)
+      } else {
+        null
       }
     }
     val fallback2 = RootLocalizer.createWithRootKey("option.taskProperties.customColumn", fallback1)
-    val fallback3 = RootLocalizer.createWithRootKey("option.customPropertyDialog", fallback2)
-    RootLocalizer.createWithRootKey("", fallback3)
+    RootLocalizer.createWithRootKey("option.customPropertyDialog", fallback2)
   }
-
-  private val nameOption = ObservableString(id = "name", validator = {value ->
-    listItems.find { it.title == value }?.let {
-      if (it != selectedItem?.cloneOf) {
-        throw ValidationException(localizer.formatText("columnExists", value))
-      }
-    }
-    if (value.isBlank()) {
-      throw ValidationException(localizer.formatText("name.validation.empty"))
-    }
-    value
-  })
+  private val nameOption = ObservableString(id = "name")
   private val typeOption = ObservableEnum(id ="type", initValue = PropertyType.STRING, allValues = PropertyType.values())
   private val defaultValueOption = ObservableString(
     id = "defaultValue",
@@ -327,12 +311,6 @@ internal class CustomPropertyEditor(
   internal val propertySheetLabel = Label().also {
     it.styleClass.add("title")
   }
-  private val visibilityToggle = createToggleSwitch()
-  internal val visibilityTogglePane = HBox().also {
-    it.styleClass.add("visibility-pane")
-    it.children.add(visibilityToggle)
-    it.children.add(Label(localizer.formatText("customPropertyDialog.visibility.label")))
-  }
   private var isPropertyChangeIgnored = false
   var selectedItem: ColumnAsListItem? = null
   set(selectedItem) {
@@ -342,7 +320,6 @@ internal class CustomPropertyEditor(
       nameOption.set(selectedItem.title)
       typeOption.set(selectedItem.type)
       defaultValueOption.set(selectedItem.defaultValue)
-      visibilityToggle.isSelected = selectedItem.isVisible
 
       if (selectedItem.isCustom) {
         propertySheetLabel.text = ourLocalizer.formatText("propertyPane.title.custom")
@@ -363,10 +340,6 @@ internal class CustomPropertyEditor(
 
   init {
     allOptions.forEach { it.addWatcher { onEdit() } }
-
-    visibilityToggle.selectedProperty().addListener { _, _, _ ->
-      onEdit()
-    }
     propertySheet.validationErrors.addListener(MapChangeListener {
       if (propertySheet.validationErrors.isEmpty()) {
         errorUi(null)
@@ -377,21 +350,9 @@ internal class CustomPropertyEditor(
     })
   }
 
-  internal fun updateVisibility(item: ColumnAsListItem) {
-    selectedItem?.let {
-      if (it.column?.id == item.column?.id) {
-        if (it.isVisible != item.isVisible) {
-          it.isVisible = item.isVisible
-          visibilityToggle.isSelected = item.isVisible
-        }
-      }
-    }
-
-  }
   private fun onEdit() {
     if (!isPropertyChangeIgnored) {
       selectedItem?.let {selected ->
-        selected.isVisible = visibilityToggle.isSelected
         selected.title = nameOption.value ?: ""
         selected.type = typeOption.value
         selected.defaultValue = defaultValueOption.value ?: ""
@@ -410,20 +371,13 @@ internal class CustomPropertyEditor(
   }
 }
 
-/**
- * Objects stored in the list view on the left side.
- */
 internal class ColumnAsListItem(
   val column: ColumnList.Column?,
-  isVisible: Boolean,
+  var isVisible: Boolean,
   val isCustom: Boolean,
-  val customColumnsManager: CustomPropertyManager,
-  val changeListener: (ColumnAsListItem)->Unit
+  val customColumnsManager: CustomPropertyManager
 ) {
-  constructor(cloneOf: ColumnAsListItem): this(
-    cloneOf.column, cloneOf.isVisible, cloneOf.isCustom, cloneOf.customColumnsManager,
-    cloneOf.changeListener) {
-
+  constructor(cloneOf: ColumnAsListItem): this(cloneOf.column, cloneOf.isVisible, cloneOf.isCustom, cloneOf.customColumnsManager) {
     this.cloneOf = cloneOf
     this.title = cloneOf.title
     this.type = cloneOf.type
@@ -432,14 +386,6 @@ internal class ColumnAsListItem(
     this.expression = cloneOf.expression
   }
   internal var cloneOf: ColumnAsListItem? = null
-
-  var isVisible: Boolean = false
-    set(value) {
-      if (field != value) {
-        field = value
-        changeListener(this)
-      }
-    }
 
   var title: String = ""
 
@@ -474,7 +420,6 @@ internal class ColumnAsListItem(
   fun clone(): ColumnAsListItem = ColumnAsListItem(this)
 
   init {
-    this.isVisible = isVisible
     if (column != null) {
       title = column.name
       val customColumn = customColumnsManager.definitions.find { it.id == column.id }
@@ -498,9 +443,6 @@ internal class ColumnAsListItem(
   }
 }
 
-/**
- * UI components that render columns in the list view.
- */
 private class CellImpl : ListCell<ColumnAsListItem>() {
   private val iconVisible = MaterialIconView(MaterialIcon.VISIBILITY)
   private val iconHidden = MaterialIconView(MaterialIcon.VISIBILITY_OFF)
@@ -514,7 +456,6 @@ private class CellImpl : ListCell<ColumnAsListItem>() {
 
   init {
     styleClass.add("column-item-cell")
-    alignment = Pos.CENTER_LEFT
   }
 
   override fun updateItem(item: ColumnAsListItem?, empty: Boolean) {
@@ -525,19 +466,14 @@ private class CellImpl : ListCell<ColumnAsListItem>() {
       return
     }
     text = item.title
-    if (text.isEmpty()) {
-      text = " "
-    }
     if (graphic == null) {
       graphic = iconPane
     }
     if (item.isVisible) {
-      styleClass.add("is-visible")
       styleClass.remove("is-hidden")
       iconPane.children.setAll(iconVisible)
     } else {
       if (!styleClass.contains("is-hidden")) {
-        styleClass.remove("is-visible")
         styleClass.add("is-hidden")
         iconPane.children.setAll(iconHidden)
       }
@@ -595,7 +531,7 @@ private fun showColumnManager(columnList: ColumnList, customColumnsManager: Cust
         dlg.hide()
       }
     }
-    dlg.setupButton(ButtonType.NEXT) { btn ->
+    dlg.setupButton(ButtonType.CANCEL) { btn ->
       btn.text = localizer.formatText("add")
       ButtonBar.setButtonData(btn, ButtonBar.ButtonData.HELP)
       btn.disableProperty().bind(columnManager.btnAddController.isDisabled)
@@ -605,7 +541,7 @@ private fun showColumnManager(columnList: ColumnList, customColumnsManager: Cust
       }
       btn.styleClass.addAll("btn-attention", "secondary")
     }
-    dlg.setupButton(ButtonType.NEXT) { btn ->
+    dlg.setupButton(ButtonType.CANCEL) { btn ->
       btn.text = localizer.formatText("delete")
       ButtonBar.setButtonData(btn, ButtonBar.ButtonData.HELP_2)
       btn.disableProperty().bind(columnManager.btnDeleteController.isDisabled)
