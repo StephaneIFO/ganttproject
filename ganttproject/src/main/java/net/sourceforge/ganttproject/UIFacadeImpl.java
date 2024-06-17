@@ -108,7 +108,7 @@ class UIFacadeImpl extends ProgressProvider implements UIFacade {
     }
   };
   private final DefaultIntegerOption myDpiOption = new DefaultIntegerOption("screenDpi", DEFAULT_DPI);
-  private final DefaultDoubleOption myRowPaddingOption = new DefaultDoubleOption("taskRowPadding", 20.0);
+  private final DefaultDoubleOption myRowPaddingOption = new DefaultDoubleOption("taskRowPadding", 8.0);
   @Override
   public IntegerOption getDpiOption() {
     return myDpiOption;
